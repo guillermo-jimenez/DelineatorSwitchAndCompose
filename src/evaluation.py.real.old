@@ -1,0 +1,146 @@
+import numpy as np
+import os
+import pandas
+from utils.data_structures import MetricsStorage
+from utils.inference import predict
+import cv2
+
+
+def evaluate(model, config, data, execinfo, metrics, results, results_CV2, recompute):
+    """Wave evaluation"""
+    predict(model, config, data, execinfo, results, results_CV2, recompute)
+
+    # IF IT'S NOT THE OVERALL EVALUATION
+    leads = np.concatenate((pandas.Index(execinfo.test) + '_0', pandas.Index(execinfo.test) + '_1'))
+
+    retrieve_fiducials(results, leads, recompute)
+    retrieve_fiducials(results_CV2, leads, recompute)    
+    
+    ### WITHOUT POST-PROCESSING ###
+    metrics = metric_computation(data, metrics, results, leads, recompute)
+    save_results(metrics, config, leads, execinfo.results)
+
+    ### WITH POST-PROCESSING ###
+    path_res = os.path.splitext(execinfo.results)[0] + '_CV2' + os.path.splitext(execinfo.results)[1]
+    metrics  = metric_computation(data, metrics, results_CV2, leads, recompute)
+    save_results(metrics, config, leads, path_res)
+
+
+def save_results(metrics, config, test, output_path):
+    if output_path[-4:].lower() != '.csv': output_path += '.csv'
+    res = dict()
+
+    precision_P, recall_P, onset_P, offset_P         = wave_evaluation_from_metrics(metrics.P,  test) 
+    precision_QRS, recall_QRS, onset_QRS, offset_QRS = wave_evaluation_from_metrics(metrics.QRS,test) 
+    precision_T, recall_T, onset_T, offset_T         = wave_evaluation_from_metrics(metrics.T,  test) 
+
+    res['Precision (P+)']          = [precision_P,                                    precision_QRS,                                    precision_T]
+    res['Recall (Se%)']            = [recall_P,                                       recall_QRS,                                       recall_T]
+    res['Onset error (Mean), ms']  = [onset_P.mean()*(1./config.sampling_freq*1000),  onset_QRS.mean()*(1./config.sampling_freq*1000),  onset_T.mean()*(1./config.sampling_freq*1000)]
+    res['Onset error (STD), ms']   = [onset_P.std()*(1./config.sampling_freq*1000),   onset_QRS.std()*(1./config.sampling_freq*1000),   onset_T.std()*(1./config.sampling_freq*1000)]
+    res['Offset error (Mean), ms'] = [offset_P.mean()*(1./config.sampling_freq*1000), offset_QRS.mean()*(1./config.sampling_freq*1000), offset_T.mean()*(1./config.sampling_freq*1000)]
+    res['Offset error (STD), ms']  = [offset_P.std()*(1./config.sampling_freq*1000),  offset_QRS.std()*(1./config.sampling_freq*1000),  offset_T.std()*(1./config.sampling_freq*1000)]
+
+    res = pandas.DataFrame(res, columns=['Precision (P+)','Recall (Se%)','Onset error (Mean), ms','Onset error (STD), ms','Offset error (Mean), ms','Offset error (STD), ms'], index=['P wave', 'QRS wave', 'T wave'])
+    res.to_csv(output_path)
+
+
+def retrieve_fiducials(results, test, recompute=False):
+    wave_fiducials(results.P,   test, recompute)
+    wave_fiducials(results.QRS, test, recompute)
+    wave_fiducials(results.T,   test, recompute)
+
+
+def wave_fiducials(wave, test, recompute=False):
+    for k in test:
+        if recompute or (k not in wave.onset.keys()):
+            seg = np.diff(np.pad(wave.wave[k].values,((1,1),),'constant', constant_values=0),axis=-1)
+
+            wave.onset[k]  = np.where(seg ==  1.)[0]
+            wave.offset[k] = np.where(seg == -1.)[0] - 1
+            wave.peak[k]   = (wave.onset[k] + wave.offset[k])//2
+
+
+def compute_wave_metrics(fiducials_data, fiducials_results, wave_metrics, test, validity, recompute=False):
+    for k in test:
+        if (k not in wave_metrics.keys) or recompute:
+            mask_on    = (fiducials_data.onset[k]  >= np.asarray(validity[k][0])[:,np.newaxis]) & (fiducials_data.onset[k]  <= np.asarray(validity[k][1])[:,np.newaxis])
+            mask_peak  = (fiducials_data.peak[k]   >= np.asarray(validity[k][0])[:,np.newaxis]) & (fiducials_data.peak[k]   <= np.asarray(validity[k][1])[:,np.newaxis])
+            mask_off   = (fiducials_data.offset[k] >= np.asarray(validity[k][0])[:,np.newaxis]) & (fiducials_data.offset[k] <= np.asarray(validity[k][1])[:,np.newaxis])
+            mask_total = np.any(mask_on & mask_peak & mask_off, axis=0) # beat has to be found in every one
+
+            d_on = fiducials_data.onset[k][mask_total]
+            d_pk = fiducials_data.peak[k][mask_total]
+            d_of = fiducials_data.offset[k][mask_total]
+
+            mask_on    = (fiducials_results.onset[k]  >= np.asarray(validity[k][0])[:,np.newaxis]) & (fiducials_results.onset[k]  <= np.asarray(validity[k][1])[:,np.newaxis])
+            mask_peak  = (fiducials_results.peak[k]   >= np.asarray(validity[k][0])[:,np.newaxis]) & (fiducials_results.peak[k]   <= np.asarray(validity[k][1])[:,np.newaxis])
+            mask_off   = (fiducials_results.offset[k] >= np.asarray(validity[k][0])[:,np.newaxis]) & (fiducials_results.offset[k] <= np.asarray(validity[k][1])[:,np.newaxis])
+            mask_total = np.any(mask_on & mask_peak & mask_off, axis=0) # beat has to be found in every one
+
+            r_on = fiducials_results.onset[k][mask_total]
+            r_pk = fiducials_results.peak[k][mask_total]
+            r_of = fiducials_results.offset[k][mask_total]
+
+            filtA =  (d_on <= r_on[:,np.newaxis]) & (r_on[:,np.newaxis] <= d_of)
+            filtB =  (d_on <= r_pk[:,np.newaxis]) & (r_pk[:,np.newaxis] <= d_of)
+            filtC =  (d_on <= r_of[:,np.newaxis]) & (r_of[:,np.newaxis] <= d_of)
+            filtD = ((r_on <= d_on[:,np.newaxis]) & (d_on[:,np.newaxis] <= r_of)).T
+            filtE = ((r_on <= d_pk[:,np.newaxis]) & (d_pk[:,np.newaxis] <= r_of)).T
+            filtF = ((r_on <= d_of[:,np.newaxis]) & (d_of[:,np.newaxis] <= r_of)).T
+
+            filt_all = filtA | filtB | filtC | filtD | filtE | filtF
+
+            # Filter out repeated elements in filter
+            if (filt_all.shape[0] != 0):
+                amax = filt_all.argmax(0)
+                for i in range(filt_all.shape[1]):
+                    filt_all[amax[i]+1:,i] = False
+
+            if (filt_all.shape[1] != 0):
+                amax = filt_all.argmax(1)
+                for i in range(filt_all.shape[0]):
+                    filt_all[i,amax[i]+1:] = False
+
+            locs = np.where(filt_all == True)
+
+            wave_metrics.truepositive[k]  = (filt_all.sum(0) == 1.).sum()
+            wave_metrics.falsepositive[k] = (filt_all.sum(1) == 0.).sum()
+            wave_metrics.falsenegative[k] = (filt_all.sum(0) == 0.).sum()
+
+            wave_metrics.onseterror[k]    = (r_on[locs[0]] - d_on[locs[1]]).tolist()
+            wave_metrics.offseterror[k]   = (r_of[locs[0]] - d_of[locs[1]]).tolist()
+                    
+            wave_metrics.keys.append(k)
+
+
+def wave_evaluation_from_metrics(wave_metrics, test):
+    tp = 0
+    fp = 0
+    fn = 0
+    on = []
+    of = []
+
+    for k in test:
+        tp += wave_metrics.truepositive[k]
+        fp += wave_metrics.falsepositive[k]
+        fn += wave_metrics.falsenegative[k]
+        on += wave_metrics.onseterror[k]
+        of += wave_metrics.offseterror[k]
+
+    precision = tp/(tp+fp)
+    recall    = tp/(tp+fn)
+    on        = np.asarray(on)
+    of        = np.asarray(of)
+
+    return precision, recall, on, of
+
+
+def metric_computation(data, metrics, results, test, recompute=False):
+    compute_wave_metrics(data.P,   results.P,   metrics.P,   test, data.validity, recompute)
+    compute_wave_metrics(data.QRS, results.QRS, metrics.QRS, test, data.validity, recompute)
+    compute_wave_metrics(data.T,   results.T,   metrics.T,   test, data.validity, recompute)
+    
+    return metrics
+
+

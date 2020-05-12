@@ -1,0 +1,156 @@
+{
+    "root_directory": "/media/guille/DADES/DADES/EjectionFraction/Databases/",
+    "save_directory": "/media/guille/DADES/DADES/EjectionFraction/TrainedModels/",
+    "device": "cuda",
+    "seed": 123456,
+    "resume": false,
+    "input_shape": 1024,
+    "iterator": "tqdm_notebook",
+    "epochs": 500,
+    "sampler": {
+        "shuffle": true
+    },
+    "loader": {
+        "batch_size": 2048,
+        "num_workers": 0,
+        "pin_memory": true
+    },
+    "optimizer": {
+        "name": "Adam",
+        "arguments": {
+            "lr": 0.001
+        }
+    },
+    "scheduler": {
+        "name": "ReduceLROnPlateau",
+        "arguments": {
+            "factor": 0.1,
+            "patience": 100
+        }
+    },
+    "augmentation": {
+        "name": "RandomChoice",
+        "arguments": {},
+        "types": {
+            "AdditiveWhiteGaussianNoise": [
+                20,
+                0.01
+            ],
+            "PowerlineNoise": [
+                20,
+                500,
+                50.0
+            ],
+            "BaselineNoise": [
+                -5,
+                500,
+                0.5
+            ],
+            "ChangeAmplitude": [
+                0.01
+            ],
+            "SegmentationErrors": [
+                10
+            ]
+        }
+    },
+    "loss": [
+        {
+            "name": "MSELoss",
+            "arguments": {
+                "reduction": "mean"
+            },
+            "mapping": [
+                "output_3",
+                "input_0"
+            ],
+            "weight": 5
+        },
+        {
+            "name": "KLDivergence",
+            "arguments": {},
+            "mapping": [
+                "output_0",
+                "output_1"
+            ],
+            "weight": 0.01
+        }
+    ],
+    "model": {
+        "type": "series",
+        "modules": [
+            {
+                "module": "Unsqueeze",
+                "arguments": {
+                    "dim": 1
+                }
+            },
+            {
+                "type": "Parallel",
+                "modules": [
+                    {
+                        "module": "CNN",
+                        "arguments": {
+                            "channels": [
+                                1,
+                                32,
+                                32
+                            ],
+                            "regularization": [
+                                {
+                                    "module": "LeakyReLU"
+                                },
+                                {
+                                    "module": "BatchNorm1d",
+                                    "arguments": {
+                                        "num_features": "update"
+                                    }
+                                },
+                                {
+                                    "module": "Dropout1d",
+                                    "arguments": {
+                                        "p": 0.25
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "module": "CNN",
+                        "arguments": {
+                            "channels": [
+                                1,
+                                16,
+                                16
+                            ],
+                            "regularization": [
+                                {
+                                    "module": "LeakyReLU"
+                                },
+                                {
+                                    "module": "BatchNorm1d",
+                                    "arguments": {
+                                        "num_features": "update"
+                                    }
+                                },
+                                {
+                                    "module": "Dropout1d",
+                                    "arguments": {
+                                        "p": 0.25
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            {
+                "module": "Concatenate",
+                "arguments": {
+                    "dim": 1
+                },
+                "returns": true
+            }
+        ]
+    }
+}

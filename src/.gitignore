@@ -1,0 +1,44 @@
+# Add any directories, files, or patterns you don't want to be tracked by version control
+
+# IGNORE THE "IMAGES" FOLDER #
+##############################
+Images/
+
+
+# IGNORE THE "LOGS" FOLDER #
+############################
+Logs/
+
+# HPC ERROR AND OUTPUT FILES #
+##############################
+*.out
+*.err
+
+# LIBREOFFICE TEMPORAL FILES #
+##############################
+*.csv#
+
+# PYTHON'S BYTECODE FILES #
+###########################
+*.pyc
+
+# MODEL FILES #
+###############
+*.yaml
+*.h5
+*.history
+*.state
+
+# MATLAB m~ FILES #
+###################
+*.m~
+*.mat
+
+# BOTHERSOME IPYTHON NOTEBOOK FILES #
+#####################################
+.ipynb_checkpoints
+
+# COMPILED C FILES IN MATLAB #
+##############################
+*.mexa64
+*.mexw64
