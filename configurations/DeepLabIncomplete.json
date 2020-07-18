@@ -94,14 +94,7 @@
             ["encoder_avgpool1", "encoder_lvl2"],
             ["encoder_lvl2", "encoder_avgpool2"],
             ["encoder_avgpool2", "encoder_lvl3"],
-            ["encoder_lvl3", "encoder_avgpool3"],
-            ["encoder_avgpool3", "encoder_lvl4"],
-            ["encoder_lvl4", "decoder_upsample4"],
-            ["decoder_upsample4", ["decoder_upsample4","encoder_lvl3"]],
-            ["encoder_lvl3", ["decoder_upsample4","encoder_lvl3"]],
-            [["decoder_upsample4","encoder_lvl3"],"decoder_concat3"],
-            ["decoder_concat3", "decoder_lvl3"],
-            ["decoder_lvl3", "decoder_upsample3"],
+            ["encoder_lvl3", "decoder_upsample3"],
             ["decoder_upsample3", ["decoder_upsample3","encoder_lvl2"]],
             ["encoder_lvl2", ["decoder_upsample3","encoder_lvl2"]],
             [["decoder_upsample3","encoder_lvl2"],"decoder_concat2"],
@@ -122,8 +115,8 @@
                 "arguments": {
                     "channels": [
                         1,
-                        32,
-                        32
+                        16,
+                        16
                     ],
                     "regularization": [
                         {
@@ -159,9 +152,9 @@
                 },
                 "arguments": {
                     "channels": [
+                        16,
                         32,
-                        64,
-                        64
+                        32
                     ],
                     "regularization": [
                         {
@@ -197,9 +190,9 @@
                 },
                 "arguments": {
                     "channels": [
+                        32,
                         64,
-                        128,
-                        128
+                        64
                     ],
                     "regularization": [
                         {
@@ -235,9 +228,9 @@
                 },
                 "arguments": {
                     "channels": [
-                        128,
-                        256,
-                        256
+                        32,
+                        64,
+                        64
                     ],
                     "regularization": [
                         {
@@ -259,46 +252,52 @@
                 }
             },
             {
-                "id": "decoder_upsample4",
-                "class": "Upsample",
+                "id": "atrous1",
+                "class": "SeparableConv1d",
                 "arguments": {
-                    "scale_factor": 2
+                    "dilation": 1,
+                    "padding": 1,
+                    "groups": 1
                 }
             },
             {
-                "id": "decoder_concat3",
+                "id": "atrous6",
+                "class": "SeparableConv1d",
+                "arguments": {
+                    "dilation": 6,
+                    "padding": 6,
+                    "groups": 1
+                }
+            },
+            {
+                "id": "atrous12",
+                "class": "SeparableConv1d",
+                "arguments": {
+                    "dilation": 12,
+                    "padding": 12,
+                    "groups": 1
+                }
+            },
+            {
+                "id": "atrous18",
+                "class": "SeparableConv1d",
+                "arguments": {
+                    "dilation": 18,
+                    "padding": 18,
+                    "groups": 1
+                }
+            },
+            {
+                "id": "atrouspool",
+                "class": "ImagePooling1d",
+                "arguments": {
+                    "in_channels": 2,
+                    "out_channels": 2
+                }
+            },
+            {
+                "id": "atrous_concatenate",
                 "class": "Concatenate"
-            },
-            {
-                "id": "decoder_lvl3",
-                "class": "CNN",
-                "operation": {
-                    "class": "SeparableConv1d"
-                },
-                "arguments": {
-                    "channels": [
-                        384,
-                        128,
-                        128
-                    ],
-                    "regularization": [
-                        {
-                            "class": "LeakyReLU"
-                        },
-                        {
-                            "class": "BatchNorm1d",
-                            "arguments": {
-                                "num_features": "update"
-                            }
-                        },
-                        {
-                            "class": "Dropout1d",
-                            "arguments": {
-                                "p": 0.25
-                            }
-                        }
-                    ]
-                }
             },
             {
                 "id": "decoder_upsample3",
@@ -319,9 +318,9 @@
                 },
                 "arguments": {
                     "channels": [
-                        192,
-                        64,
-                        64
+                        96,
+                        32,
+                        32
                     ],
                     "regularization": [
                         {
@@ -361,9 +360,9 @@
                 },
                 "arguments": {
                     "channels": [
-                        96,
-                        32,
-                        32,
+                        48,
+                        16,
+                        16,
                         3
                     ],
                     "regularization": [

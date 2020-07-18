@@ -122,8 +122,8 @@
                 "arguments": {
                     "channels": [
                         1,
-                        32,
-                        32
+                        16,
+                        16
                     ],
                     "regularization": [
                         {
@@ -159,9 +159,9 @@
                 },
                 "arguments": {
                     "channels": [
+                        16,
                         32,
-                        64,
-                        64
+                        32
                     ],
                     "regularization": [
                         {
@@ -197,9 +197,9 @@
                 },
                 "arguments": {
                     "channels": [
+                        32,
                         64,
-                        128,
-                        128
+                        64
                     ],
                     "regularization": [
                         {
@@ -235,9 +235,9 @@
                 },
                 "arguments": {
                     "channels": [
+                        64,
                         128,
-                        256,
-                        256
+                        128
                     ],
                     "regularization": [
                         {
@@ -277,9 +277,9 @@
                 },
                 "arguments": {
                     "channels": [
-                        384,
-                        128,
-                        128
+                        192,
+                        64,
+                        64
                     ],
                     "regularization": [
                         {
@@ -319,9 +319,9 @@
                 },
                 "arguments": {
                     "channels": [
-                        192,
-                        64,
-                        64
+                        96,
+                        32,
+                        32
                     ],
                     "regularization": [
                         {
@@ -361,9 +361,9 @@
                 },
                 "arguments": {
                     "channels": [
-                        96,
-                        32,
-                        32,
+                        48,
+                        16,
+                        16,
                         3
                     ],
                     "regularization": [
