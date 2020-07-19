@@ -1,5 +1,4 @@
 # Exclude folders
-pickle/
 figures/
 
 # Byte-compiled / optimized / DLL files
