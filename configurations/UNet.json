@@ -5,7 +5,7 @@
     "seed": 123456,
     "resume": false,
     "input_shape": 1024,
-    "iterator": "tqdm_notebook",
+    "iterator": "tqdm",
     "epochs": 500,
     "sampler": {
         "shuffle": true
@@ -85,7 +85,7 @@
                     "encoder_lvl1"
                 ],
                 "outputs": [
-                    "decoder_lvl1"
+                    "sigmoid"
                 ]
             }
         ],
@@ -110,7 +110,8 @@
             ["decoder_upsample2", ["decoder_upsample2","encoder_lvl1"]],
             ["encoder_lvl1", ["decoder_upsample2","encoder_lvl1"]],
             [["decoder_upsample2","encoder_lvl1"],"decoder_concat1"],
-            ["decoder_concat1", "decoder_lvl1"]
+            ["decoder_concat1", "decoder_lvl1"],
+            ["decoder_lvl1", "sigmoid"]
         ],
         "nodes": [
             {
@@ -382,8 +383,13 @@
                                 "p": 0.25
                             }
                         }
-                    ]
+                    ],
+                    "regularize_extrema": false
                 }
+            },
+            {
+                "id": "sigmoid",
+                "class": "Sigmoid"
             }
         ]
     }
