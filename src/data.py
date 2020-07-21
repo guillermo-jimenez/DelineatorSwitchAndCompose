@@ -181,12 +181,12 @@ class Dataset(torch.utils.data.Dataset):
 
         # Express as masks
         if self.labels_as_masks:
-            masks_all = np.zeros((3,N),dtype=bool)
+            masks_all = np.zeros((3,self.N),dtype=bool)
             masks_all[0,:] = (masks == 1)
             masks_all[1,:] = (masks == 2)
             masks_all[2,:] = (masks == 3)
         else:
-            masks_all = masks
+            masks_all = masks.astype('int32')
 
         # Add baseline wander
         if self.add_baseline_wander:
