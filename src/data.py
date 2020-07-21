@@ -21,7 +21,8 @@ class Dataset(torch.utils.data.Dataset):
                  length,N = 2048, noise = 0.005, proba_P = 0.25,
                  proba_QRS = 0.01, proba_PQ = 0.15, 
                  proba_ST = 0.15, proba_same_morph = 0.2,
-                 add_baseline_wander = True, window = 51):
+                 add_baseline_wander = True, window = 51,
+                 labels_as_masks = True):
         # Segments
         self.P = P
         self.QRS = QRS
@@ -48,6 +49,7 @@ class Dataset(torch.utils.data.Dataset):
         self.noise = noise
         self.add_baseline_wander = add_baseline_wander
         self.window = window
+        self.labels_as_masks = labels_as_masks
 
         # Probabilities
         self.proba_P = proba_P
@@ -172,14 +174,19 @@ class Dataset(torch.utils.data.Dataset):
         # Obtain final stuff
         signal = np.concatenate(beats,)
         masks = np.concatenate(masks)
-        masks_all = np.zeros((3,record_size),dtype=bool)
-        masks_all[0,:] = (masks == 1)
-        masks_all[1,:] = (masks == 2)
-        masks_all[2,:] = (masks == 3)
 
         # Move onset
         signal = signal[onset:onset+self.N]
-        masks_all = masks_all[:,onset:onset+self.N]
+        masks = masks[onset:onset+self.N]
+
+        # Express as masks
+        if self.labels_as_masks:
+            masks_all = np.zeros((3,N),dtype=bool)
+            masks_all[0,:] = (masks == 1)
+            masks_all[1,:] = (masks == 2)
+            masks_all[2,:] = (masks == 3)
+        else:
+            masks_all = masks
 
         # Add baseline wander
         if self.add_baseline_wander:
