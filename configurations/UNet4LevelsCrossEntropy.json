@@ -1,0 +1,384 @@
+{
+    "root_directory": "/media/guille/DADES/DADES/EjectionFraction/Databases/",
+    "save_directory": "/media/guille/DADES/DADES/EjectionFraction/TrainedModels/",
+    "device": "cuda",
+    "seed": 123456,
+    "resume": false,
+    "input_shape": 1024,
+    "iterator": "tqdm",
+    "epochs": 500,
+    "sampler": {
+        "shuffle": true
+    },
+    "loader": {
+        "batch_size": 64,
+        "num_workers": 0,
+        "pin_memory": true
+    },
+    "optimizer": {
+        "class": "Adam",
+        "arguments": {
+            "lr": 0.001
+        }
+    },
+    "scheduler": {
+        "class": "ReduceLROnPlateau",
+        "arguments": {
+            "factor": 0.1,
+            "patience": 100
+        }
+    },
+    "augmentation": {
+        "class": "RandomChoice",
+        "arguments": {},
+        "types": {
+            "AdditiveWhiteGaussianNoise": [
+                20,
+                0.01
+            ],
+            "PowerlineNoise": [
+                20,
+                500,
+                50.0
+            ],
+            "BaselineNoise": [
+                -5,
+                500,
+                0.5
+            ],
+            "ChangeAmplitude": [
+                0.01
+            ],
+            "SegmentationErrors": [
+                10
+            ]
+        }
+    },
+    "loss": [
+        {
+            "class": "CrossEntropyLoss",
+            "mapping": [
+                "sigmoid",
+                "input_0"
+            ],
+            "weight": 5
+        }
+    ],
+    "model": {
+        "type": "graph",
+        "functions": [
+            {
+                "name": "forward",
+                "inputs": [
+                    "encoder_lvl1"
+                ],
+                "outputs": [
+                    "sigmoid"
+                ]
+            }
+        ],
+        "edges": [
+            ["encoder_lvl1", "encoder_avgpool1"],
+            ["encoder_avgpool1", "encoder_lvl2"],
+            ["encoder_lvl2", "encoder_avgpool2"],
+            ["encoder_avgpool2", "encoder_lvl3"],
+            ["encoder_lvl3", "encoder_avgpool3"],
+            ["encoder_avgpool3", "encoder_lvl4"],
+            ["encoder_lvl4", "decoder_upsample4"],
+            ["decoder_upsample4", ["decoder_upsample4","encoder_lvl3"]],
+            ["encoder_lvl3", ["decoder_upsample4","encoder_lvl3"]],
+            [["decoder_upsample4","encoder_lvl3"],"decoder_concat3"],
+            ["decoder_concat3", "decoder_lvl3"],
+            ["decoder_lvl3", "decoder_upsample3"],
+            ["decoder_upsample3", ["decoder_upsample3","encoder_lvl2"]],
+            ["encoder_lvl2", ["decoder_upsample3","encoder_lvl2"]],
+            [["decoder_upsample3","encoder_lvl2"],"decoder_concat2"],
+            ["decoder_concat2", "decoder_lvl2"],
+            ["decoder_lvl2", "decoder_upsample2"],
+            ["decoder_upsample2", ["decoder_upsample2","encoder_lvl1"]],
+            ["encoder_lvl1", ["decoder_upsample2","encoder_lvl1"]],
+            [["decoder_upsample2","encoder_lvl1"],"decoder_concat1"],
+            ["decoder_concat1", "decoder_lvl1"],
+            ["decoder_lvl1", "sigmoid"]
+        ],
+        "nodes": [
+            {
+                "id": "encoder_lvl1",
+                "class": "CNN",
+                "operation": {
+                    "class": "SeparableConv1d"
+                },
+                "arguments": {
+                    "channels": [
+                        1,
+                        16,
+                        16
+                    ],
+                    "regularization": [
+                        {
+                            "class": "LeakyReLU"
+                        },
+                        {
+                            "class": "BatchNorm1d",
+                            "arguments": {
+                                "num_features": "update"
+                            }
+                        },
+                        {
+                            "class": "Dropout1d",
+                            "arguments": {
+                                "p": 0.25
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "encoder_avgpool1",
+                "class": "AvgPool1d",
+                "arguments": {
+                    "kernel_size": 2
+                }
+            },
+            {
+                "id": "encoder_lvl2",
+                "class": "CNN",
+                "operation": {
+                    "class": "SeparableConv1d"
+                },
+                "arguments": {
+                    "channels": [
+                        16,
+                        32,
+                        32
+                    ],
+                    "regularization": [
+                        {
+                            "class": "LeakyReLU"
+                        },
+                        {
+                            "class": "BatchNorm1d",
+                            "arguments": {
+                                "num_features": "update"
+                            }
+                        },
+                        {
+                            "class": "Dropout1d",
+                            "arguments": {
+                                "p": 0.25
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "encoder_avgpool2",
+                "class": "AvgPool1d",
+                "arguments": {
+                    "kernel_size": 2
+                }
+            },
+            {
+                "id": "encoder_lvl3",
+                "class": "CNN",
+                "operation": {
+                    "class": "SeparableConv1d"
+                },
+                "arguments": {
+                    "channels": [
+                        32,
+                        64,
+                        64
+                    ],
+                    "regularization": [
+                        {
+                            "class": "LeakyReLU"
+                        },
+                        {
+                            "class": "BatchNorm1d",
+                            "arguments": {
+                                "num_features": "update"
+                            }
+                        },
+                        {
+                            "class": "Dropout1d",
+                            "arguments": {
+                                "p": 0.25
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "encoder_avgpool3",
+                "class": "AvgPool1d",
+                "arguments": {
+                    "kernel_size": 2
+                }
+            },
+            {
+                "id": "encoder_lvl4",
+                "class": "CNN",
+                "operation": {
+                    "class": "SeparableConv1d"
+                },
+                "arguments": {
+                    "channels": [
+                        64,
+                        128,
+                        128
+                    ],
+                    "regularization": [
+                        {
+                            "class": "LeakyReLU"
+                        },
+                        {
+                            "class": "BatchNorm1d",
+                            "arguments": {
+                                "num_features": "update"
+                            }
+                        },
+                        {
+                            "class": "Dropout1d",
+                            "arguments": {
+                                "p": 0.25
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "decoder_upsample4",
+                "class": "Upsample",
+                "arguments": {
+                    "scale_factor": 2
+                }
+            },
+            {
+                "id": "decoder_concat3",
+                "class": "Concatenate"
+            },
+            {
+                "id": "decoder_lvl3",
+                "class": "CNN",
+                "operation": {
+                    "class": "SeparableConv1d"
+                },
+                "arguments": {
+                    "channels": [
+                        192,
+                        64,
+                        64
+                    ],
+                    "regularization": [
+                        {
+                            "class": "LeakyReLU"
+                        },
+                        {
+                            "class": "BatchNorm1d",
+                            "arguments": {
+                                "num_features": "update"
+                            }
+                        },
+                        {
+                            "class": "Dropout1d",
+                            "arguments": {
+                                "p": 0.25
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "decoder_upsample3",
+                "class": "Upsample",
+                "arguments": {
+                    "scale_factor": 2
+                }
+            },
+            {
+                "id": "decoder_concat2",
+                "class": "Concatenate"
+            },
+            {
+                "id": "decoder_lvl2",
+                "class": "CNN",
+                "operation": {
+                    "class": "SeparableConv1d"
+                },
+                "arguments": {
+                    "channels": [
+                        96,
+                        32,
+                        32
+                    ],
+                    "regularization": [
+                        {
+                            "class": "LeakyReLU"
+                        },
+                        {
+                            "class": "BatchNorm1d",
+                            "arguments": {
+                                "num_features": "update"
+                            }
+                        },
+                        {
+                            "class": "Dropout1d",
+                            "arguments": {
+                                "p": 0.25
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "decoder_upsample2",
+                "class": "Upsample",
+                "arguments": {
+                    "scale_factor": 2
+                }
+            },
+            {
+                "id": "decoder_concat1",
+                "class": "Concatenate"
+            },
+            {
+                "id": "decoder_lvl1",
+                "class": "CNN",
+                "operation": {
+                    "class": "SeparableConv1d"
+                },
+                "arguments": {
+                    "channels": [
+                        48,
+                        16,
+                        16,
+                        4
+                    ],
+                    "regularization": [
+                        {
+                            "class": "LeakyReLU"
+                        },
+                        {
+                            "class": "BatchNorm1d",
+                            "arguments": {
+                                "num_features": "update"
+                            }
+                        },
+                        {
+                            "class": "Dropout1d",
+                            "arguments": {
+                                "p": 0.25
+                            }
+                        }
+                    ],
+                    "regularize_extrema": false
+                }
+            },
+            {
+                "id": "sigmoid",
+                "class": "Sigmoid"
+            }
+        ]
+    }
+}
