@@ -6,7 +6,7 @@
     "resume": false,
     "input_shape": 1024,
     "iterator": "tqdm",
-    "epochs": 200,
+    "epochs": 100,
     "sampler": {
         "shuffle": true
     },
