@@ -1,7 +1,9 @@
 import torch
 import torch.utils
 import numpy as np
+import math
 from scipy.stats import norm
+from scipy.interpolate import interp1d
 
 
 def trailonset(sig,on):
@@ -18,11 +20,12 @@ class Dataset(torch.utils.data.Dataset):
     def __init__(self, P, QRS, T, PQ, ST, TP, 
                  Pamplitudes, QRSamplitudes, Tamplitudes, 
                  PQamplitudes, STamplitudes, TPamplitudes, 
-                 length,N = 2048, noise = 0.005, proba_P = 0.25,
-                 proba_QRS = 0.01, proba_PQ = 0.15, 
-                 proba_ST = 0.15, proba_same_morph = 0.2,
-                 add_baseline_wander = True, window = 51,
-                 labels_as_masks = True):
+                 length,N = 2048, noise = 0.005, proba_no_P = 0.25,
+                 proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
+                 proba_no_ST = 0.15, proba_same_morph = 0.2,
+                 proba_TV = 0.05, add_baseline_wander = True, 
+                 amplitude_std = 0.25, interp_std = 0.25,
+                 window = 51, labels_as_masks = True):
         # Segments
         self.P = P
         self.QRS = QRS
@@ -50,12 +53,15 @@ class Dataset(torch.utils.data.Dataset):
         self.add_baseline_wander = add_baseline_wander
         self.window = window
         self.labels_as_masks = labels_as_masks
+        self.amplitude_std = amplitude_std
+        self.interp_std = interp_std
 
         # Probabilities
-        self.proba_P = proba_P
-        self.proba_QRS = proba_QRS
-        self.proba_PQ = proba_PQ
-        self.proba_ST = proba_ST
+        self.proba_no_P = proba_no_P
+        self.proba_no_QRS = proba_no_QRS
+        self.proba_no_PQ = proba_no_PQ
+        self.proba_no_ST = proba_no_ST
+        self.proba_TV = proba_TV
         self.proba_same_morph = proba_same_morph
         
         
@@ -65,11 +71,17 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i: int):
         '''Generates one datapoint''' 
+        # Set hyperparameters
         onset = np.random.randint(0,50)
         begining_wave = np.random.randint(0,6)
-        has_P = (np.random.rand(1) > self.proba_P)
-        has_PQ = (np.random.rand(1) > self.proba_PQ)
-        has_ST = (np.random.rand(1) > self.proba_ST)
+        global_amplitude = 1.+(np.random.randn(1)*self.amplitude_std)
+        interp_length = max([1.+(np.random.randn(1)*self.interp_std),0.2])
+
+        # Probabilities of waves
+        does_not_have_P = (np.random.rand(1) > (1-self.proba_no_P))
+        does_not_have_PQ = (np.random.rand(1) > (1-self.proba_no_PQ))
+        does_not_have_ST = (np.random.rand(1) > (1-self.proba_no_ST))
+        has_TV = (np.random.rand(1) > (1-self.proba_TV))
         has_same_morph = (np.random.rand(1) > self.proba_same_morph)
 
         ##### Data structure
@@ -92,14 +104,15 @@ class Dataset(torch.utils.data.Dataset):
             id_TP = np.repeat(np.random.randint(0,len(self.TP),size=1),self.N)
 
         # In case QRS is not expressed
-        filt_QRS = np.random.rand(self.N) < self.proba_QRS
+        filt_QRS = np.random.rand(self.N) > (1-self.proba_no_QRS)
 
         # P wave
-        id_P[(np.random.rand(self.N) < self.proba_P) | np.logical_not(has_P)] = -1
-        id_PQ[filt_QRS | (np.random.rand(self.N) < self.proba_PQ) | np.logical_not(has_PQ)] = -1
+        id_P[(np.random.rand(self.N) < self.proba_no_P) | does_not_have_P | has_TV] = -1
+        id_PQ[filt_QRS | (np.random.rand(self.N) < self.proba_no_PQ) | does_not_have_PQ | has_TV] = -1
         id_QRS[filt_QRS] = -1
-        id_ST[filt_QRS | (np.random.rand(self.N) < self.proba_ST) | np.logical_not(has_ST)] = -1
+        id_ST[filt_QRS | (np.random.rand(self.N) < self.proba_no_ST) | does_not_have_ST] = -1
         id_T[filt_QRS] = -1
+        id_TP[np.full((self.N),has_TV,dtype=bool)] = -1
 
         beats = []
         masks = []
@@ -139,8 +152,15 @@ class Dataset(torch.utils.data.Dataset):
                     offset = beats[-1][-1]
                     record_size += beats[-1].size
                 if (j == 3) and (id_ST[i] != -1):
+                    if has_TV:
+                        nx = np.random.randint(16)
+                        if nx < 2:
+                            continue
+                        stsegment = np.convolve(np.cumsum(norm.rvs(scale=0.01**(2*0.5),size=nx)),np.hamming(nx)/(nx//2),mode='same')
+                    else:
+                        stsegment = self.ST[self.STkeys[id_ST[i]]]
                     amplitude = self.STamplitudes.rvs(1)
-                    segment = trailonset(amplitude*self.ST[self.STkeys[id_ST[i]]],offset)
+                    segment = trailonset(amplitude*stsegment,offset)
                     segment *= 0.15*np.random.randn(1)+1
                     beats.append(segment)
                     masks.append(np.zeros((beats[-1].size,),dtype='int8'))
@@ -165,19 +185,27 @@ class Dataset(torch.utils.data.Dataset):
                     ids.append(('TP',self.TPkeys[id_TP[i]]))
                     offset = beats[-1][-1]
                     record_size += beats[-1].size
-                if (record_size-onset) >= self.N:
+                if (math.floor(record_size*interp_length)-onset) >= self.N:
                     mark_break = True
                     break
             if mark_break:
                 break
 
         # Obtain final stuff
-        signal = np.concatenate(beats,)
+        signal = np.concatenate(beats)
         masks = np.concatenate(masks)
+
+        # Interpolate signal & mask
+        x = np.linspace(0,1,signal.size)
+        signal = interp1d(x,signal)(np.linspace(0,1,math.ceil(signal.size*interp_length)))
+        masks = interp1d(x,masks)(np.linspace(0,1,math.ceil(masks.size*interp_length))).astype(int)
 
         # Move onset
         signal = signal[onset:onset+self.N]
         masks = masks[onset:onset+self.N]
+
+        # Modify amplitude
+        signal = signal*global_amplitude
 
         # Express as masks
         if self.labels_as_masks:
