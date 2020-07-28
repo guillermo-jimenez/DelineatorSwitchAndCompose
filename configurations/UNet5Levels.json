@@ -1,12 +1,12 @@
 {
-    "root_directory": "/media/guille/DADES/DADES/EjectionFraction/Databases/",
-    "save_directory": "/media/guille/DADES/DADES/EjectionFraction/TrainedModels/",
+    "root_directory": "/media/guille/DADES/DADES/Delineator/Databases/",
+    "save_directory": "/media/guille/DADES/DADES/Delineator/TrainedModels/UNet5Dice",
     "device": "cuda",
     "seed": 123456,
     "resume": false,
     "input_shape": 1024,
     "iterator": "tqdm",
-    "epochs": 100,
+    "epochs": 200,
     "sampler": {
         "shuffle": true
     },
@@ -25,7 +25,7 @@
         "class": "ReduceLROnPlateau",
         "arguments": {
             "factor": 0.1,
-            "patience": 100
+            "patience": 20
         }
     },
     "augmentation": {
