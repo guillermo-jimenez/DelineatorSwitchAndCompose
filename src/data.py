@@ -23,6 +23,7 @@ class Dataset(torch.utils.data.Dataset):
                  length,N = 2048, noise = 0.005, proba_no_P = 0.25,
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
+                 proba_elevation = 0.2, proba_interpolation = 0.2,
                  proba_TV = 0.05, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  window = 51, labels_as_masks = True):
@@ -63,6 +64,8 @@ class Dataset(torch.utils.data.Dataset):
         self.proba_no_ST = proba_no_ST
         self.proba_TV = proba_TV
         self.proba_same_morph = proba_same_morph
+        self.proba_elevation = proba_elevation
+        self.proba_interpolation = proba_interpolation
         
         
     def __len__(self):
@@ -82,7 +85,9 @@ class Dataset(torch.utils.data.Dataset):
         does_not_have_PQ = (np.random.rand(1) > (1-self.proba_no_PQ))
         does_not_have_ST = (np.random.rand(1) > (1-self.proba_no_ST))
         has_TV = (np.random.rand(1) > (1-self.proba_TV))
-        has_same_morph = (np.random.rand(1) > self.proba_same_morph)
+        has_same_morph = (np.random.rand(1) > (1-self.proba_same_morph))
+        has_elevation = (np.random.rand(self.N) > (1-self.proba_elevation))
+        has_interpolation = (np.random.rand(self.N) > (1-self.proba_interpolation))
 
         ##### Data structure
         ids = []
@@ -113,7 +118,7 @@ class Dataset(torch.utils.data.Dataset):
         id_ST[filt_QRS | (np.random.rand(self.N) < self.proba_no_ST) | does_not_have_ST] = -1
         id_T[filt_QRS] = -1
         id_TP[np.full((self.N),has_TV,dtype=bool)] = -1
-
+        
         beats = []
         masks = []
         ids = []
@@ -126,8 +131,17 @@ class Dataset(torch.utils.data.Dataset):
                     continue
                 if (j == 0) and (id_P[i] != -1):
                     amplitude = self.Pamplitudes.rvs(1)
-                    segment = trailonset(amplitude*self.P[self.Pkeys[id_P[i]]],offset)
+                    segment = amplitude*self.P[self.Pkeys[id_P[i]]]
                     segment *= 0.15*np.random.randn(1)+1
+                    if has_interpolation[len(beats)]:
+                        x = np.linspace(0,1,segment.size)
+                        x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.5)).clip(1)))
+                        segment = interp1d(x,segment)(x_new)
+                    if has_elevation[len(beats)]:
+                        right_amplitude = amplitude*norm.rvs(0,0.5,1)
+                        right_sign = np.sign(right_amplitude)
+                        segment += right_sign*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
+                    segment = trailonset(segment,offset)
                     beats.append(segment)
                     masks.append(np.full((beats[-1].size,),1,dtype='int8'))
                     ids.append(('P',self.Pkeys[id_P[i]]))
@@ -135,8 +149,17 @@ class Dataset(torch.utils.data.Dataset):
                     record_size += beats[-1].size
                 if (j == 1) and (id_PQ[i] != -1):
                     amplitude = self.PQamplitudes.rvs(1)
-                    segment = trailonset(amplitude*self.PQ[self.PQkeys[id_PQ[i]]],offset)
+                    segment = amplitude*self.PQ[self.PQkeys[id_PQ[i]]]
                     segment *= 0.15*np.random.randn(1)+1
+                    if has_interpolation[len(beats)]:
+                        x = np.linspace(0,1,segment.size)
+                        x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.5)).clip(1)))
+                        segment = interp1d(x,segment)(x_new)
+                    if has_elevation[len(beats)]:
+                        right_amplitude = amplitude*norm.rvs(0,1.0,1)
+                        right_sign = np.sign(right_amplitude)
+                        segment += right_sign*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
+                    segment = trailonset(segment,offset)
                     beats.append(segment)
                     masks.append(np.zeros((beats[-1].size,),dtype='int8'))
                     ids.append(('PQ',self.PQkeys[id_PQ[i]]))
@@ -144,8 +167,17 @@ class Dataset(torch.utils.data.Dataset):
                     record_size += beats[-1].size
                 if (j == 2) and (id_QRS[i] != -1):
                     amplitude = self.QRSamplitudes.rvs(1)
-                    segment = trailonset(amplitude*self.QRS[self.QRSkeys[id_QRS[i]]],offset)
+                    segment = amplitude*self.QRS[self.QRSkeys[id_QRS[i]]]
                     segment *= 0.15*np.random.randn(1)+1
+                    if has_interpolation[len(beats)]:
+                        x = np.linspace(0,1,segment.size)
+                        x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.5)).clip(1)))
+                        segment = interp1d(x,segment)(x_new)
+                    if has_elevation[len(beats)]:
+                        right_amplitude = amplitude*norm.rvs(0,0.1,1)
+                        right_sign = np.sign(right_amplitude)
+                        segment += right_sign*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
+                    segment = trailonset(segment,offset)
                     beats.append(segment)
                     masks.append(np.full((beats[-1].size,),2,dtype='int8'))
                     ids.append(('QRS',self.QRSkeys[id_QRS[i]]))
@@ -160,8 +192,17 @@ class Dataset(torch.utils.data.Dataset):
                     else:
                         stsegment = self.ST[self.STkeys[id_ST[i]]]
                     amplitude = self.STamplitudes.rvs(1)
-                    segment = trailonset(amplitude*stsegment,offset)
+                    segment = amplitude*stsegment
                     segment *= 0.15*np.random.randn(1)+1
+                    if has_interpolation[len(beats)]:
+                        x = np.linspace(0,1,segment.size)
+                        x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.5)).clip(1)))
+                        segment = interp1d(x,segment)(x_new)
+                    if has_elevation[len(beats)]:
+                        right_amplitude = amplitude*norm.rvs(0,1.5,1)
+                        right_sign = np.sign(right_amplitude)
+                        segment += right_sign*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
+                    segment = trailonset(segment,offset)
                     beats.append(segment)
                     masks.append(np.zeros((beats[-1].size,),dtype='int8'))
                     ids.append(('ST',self.STkeys[id_ST[i]]))
@@ -169,8 +210,17 @@ class Dataset(torch.utils.data.Dataset):
                     record_size += beats[-1].size
                 if (j == 4) and (id_T[i] != -1):
                     amplitude = self.Tamplitudes.rvs(1)
-                    segment = trailonset(amplitude*self.T[self.Tkeys[id_T[i]]],offset)
+                    segment = amplitude*self.T[self.Tkeys[id_T[i]]]
                     segment *= 0.15*np.random.randn(1)+1
+                    if has_interpolation[len(beats)]:
+                        x = np.linspace(0,1,segment.size)
+                        x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.5)).clip(1)))
+                        segment = interp1d(x,segment)(x_new)
+                    if has_elevation[len(beats)]:
+                        right_amplitude = amplitude*norm.rvs(0,0.25,1)
+                        right_sign = np.sign(right_amplitude)
+                        segment += right_sign*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
+                    segment = trailonset(segment,offset)
                     beats.append(segment)
                     masks.append(np.full((beats[-1].size,),3,dtype='int8'))
                     ids.append(('T',self.Tkeys[id_T[i]]))
@@ -178,8 +228,17 @@ class Dataset(torch.utils.data.Dataset):
                     record_size += beats[-1].size
                 if (j == 5) and (id_TP[i] != -1):
                     amplitude = self.TPamplitudes.rvs(1)
-                    segment = trailonset(amplitude*self.TP[self.TPkeys[id_TP[i]]],offset)
+                    segment = amplitude*self.TP[self.TPkeys[id_TP[i]]]
                     segment *= 0.15*np.random.randn(1)+1
+                    if has_interpolation[len(beats)]:
+                        x = np.linspace(0,1,segment.size)
+                        x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.5)).clip(1)))
+                        segment = interp1d(x,segment)(x_new)
+                    if has_elevation[len(beats)]:
+                        right_amplitude = amplitude*norm.rvs(0,0.15,1)
+                        right_sign = np.sign(right_amplitude)
+                        segment += right_sign*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
+                    segment = trailonset(segment,offset)
                     beats.append(segment)
                     masks.append(np.zeros((beats[-1].size,),dtype='int8'))
                     ids.append(('TP',self.TPkeys[id_TP[i]]))
