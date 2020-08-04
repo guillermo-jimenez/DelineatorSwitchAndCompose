@@ -57,7 +57,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
                  proba_elevation = 0.2, proba_interpolation = 0.2,
-                 proba_mixup = 0.2,
+                 proba_mixup = 0.2, mixup_alpha = 1.0, mixup_beta = 1.0,
                  proba_TV = 0.05, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  window = 51, labels_as_masks = True):
@@ -90,6 +90,8 @@ class Dataset(torch.utils.data.Dataset):
         self.labels_as_masks = labels_as_masks
         self.amplitude_std = amplitude_std
         self.interp_std = interp_std
+        self.mixup_alpha = mixup_alpha
+        self.mixup_beta = mixup_beta
 
         # Probabilities
         self.proba_no_P = proba_no_P
@@ -194,7 +196,7 @@ class Dataset(torch.utils.data.Dataset):
                             intlen = np.random.randint(min([segment.size,segment2.size]),max([segment.size,segment2.size]))
                             segment = interp1d(np.linspace(0,1,segment.size),segment)(np.linspace(0,1,intlen))
                             segment2 = interp1d(np.linspace(0,1,segment2.size),segment2)(np.linspace(0,1,intlen))
-                        (segment,_) = mixup(segment,segment2)
+                        (segment,_) = mixup(segment,segment2,self.mixup_alpha,self.mixup_beta)
                         segment /= (np.max(segment)-np.min(segment) + self.eps)
                 
                 # amplitude noising
