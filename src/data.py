@@ -6,6 +6,39 @@ from scipy.stats import norm
 from scipy.interpolate import interp1d
 
 
+def mixup(x1: np.ndarray, x2: np.ndarray, alpha: float = 1.0, beta: float = 1.0, axis = None, shuffle: bool = True):
+    """Adapted from original authors of paper "[1710.09412] mixup: Beyond Empirical Risk Minimization"
+    GitHub: https://github.com/facebookresearch/mixup-cifar10/
+    """
+
+    # Compute lambda. If hyperparams are incorrect, your loss
+    lmbda = np.random.beta(alpha, beta)
+
+    if axis is None:
+        axis = 0
+        shuffle = False # The default indicates that no batch is used
+
+    # Swap axes to generalize for n-dimensional tensor
+    x1 = np.swapaxes(x1,axis,0) # Compatible with pytorch
+    x2 = np.swapaxes(x2,axis,0) # Compatible with pytorch
+
+    # Permutation along data axis (allowing batch mixup)
+    if shuffle:
+        index = np.random.permutation(np.arange(x2.shape[0])) # Compatible with pytorch
+
+        # Mix datapoints. If shapes are incompatible, your loss
+        xhat = lmbda * x1 + (1 - lmbda) * x2[index, :]
+    else:
+        # Mix datapoints. If shapes are incompatible, your loss
+        xhat = lmbda * x1 + (1 - lmbda) * x2
+    
+    # Swap axes back
+    xhat = np.swapaxes(xhat,axis,0) # Compatible with pytorch
+
+    # Return mixed point and lambda. Left label computation to be project-specific
+    return xhat, lmbda
+
+
 def trailonset(sig,on):
     on = on-sig[0]
     off = on-sig[0]+sig[-1]
@@ -24,6 +57,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
                  proba_elevation = 0.2, proba_interpolation = 0.2,
+                 proba_mixup = 0.2,
                  proba_TV = 0.05, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  window = 51, labels_as_masks = True):
@@ -66,6 +100,10 @@ class Dataset(torch.utils.data.Dataset):
         self.proba_same_morph = proba_same_morph
         self.proba_elevation = proba_elevation
         self.proba_interpolation = proba_interpolation
+        self.proba_mixup = proba_mixup
+
+        # Utility
+        self.eps = np.finfo('float').eps
         
         
     def __len__(self):
@@ -88,22 +126,23 @@ class Dataset(torch.utils.data.Dataset):
         has_same_morph = (np.random.rand(1) > (1-self.proba_same_morph))
         has_elevation = (np.random.rand(self.N) > (1-self.proba_elevation))
         has_interpolation = (np.random.rand(self.N) > (1-self.proba_interpolation))
+        has_mixup = (np.random.rand(self.N) > (1-self.proba_mixup))
 
         ##### Identifiers
-        if not has_same_morph:
-            id_P = np.random.randint(0,len(self.P),size=self.N)
-            id_PQ = np.random.randint(0,len(self.PQ),size=self.N)
-            id_QRS = np.random.randint(0,len(self.QRS),size=self.N)
-            id_ST = np.random.randint(0,len(self.ST),size=self.N)
-            id_T = np.random.randint(0,len(self.T),size=self.N)
-            id_TP = np.random.randint(0,len(self.TP),size=self.N)
-        else:
+        if has_same_morph:
             id_P = np.repeat(np.random.randint(0,len(self.P),size=1),self.N)
             id_PQ = np.repeat(np.random.randint(0,len(self.PQ),size=1),self.N)
             id_QRS = np.repeat(np.random.randint(0,len(self.QRS),size=1),self.N)
             id_ST = np.repeat(np.random.randint(0,len(self.ST),size=1),self.N)
             id_T = np.repeat(np.random.randint(0,len(self.T),size=1),self.N)
             id_TP = np.repeat(np.random.randint(0,len(self.TP),size=1),self.N)
+        else:
+            id_P = np.random.randint(0,len(self.P),size=self.N)
+            id_PQ = np.random.randint(0,len(self.PQ),size=self.N)
+            id_QRS = np.random.randint(0,len(self.QRS),size=self.N)
+            id_ST = np.random.randint(0,len(self.ST),size=self.N)
+            id_T = np.random.randint(0,len(self.T),size=self.N)
+            id_TP = np.random.randint(0,len(self.TP),size=self.N)
 
         # In case QRS is not expressed
         filt_QRS = np.random.rand(self.N) > (1-self.proba_no_QRS)
@@ -124,41 +163,58 @@ class Dataset(torch.utils.data.Dataset):
         for i in range(self.N): # Unrealistic upper limit
             for j in range(6):
                 if (i == 0) and (j < begining_wave): continue
-                if j == 0: ids,key,wave,distribution = id_P[i],   self.Pkeys[id_P[i]],     self.P,   self.Pamplitudes
-                if j == 1: ids,key,wave,distribution = id_PQ[i],  self.PQkeys[id_PQ[i]],   self.PQ,  self.PQamplitudes
-                if j == 2: ids,key,wave,distribution = id_QRS[i], self.QRSkeys[id_QRS[i]], self.QRS, self.QRSamplitudes
-                if j == 3: ids,key,wave,distribution = id_ST[i],  self.STkeys[id_ST[i]],   self.ST,  self.STamplitudes
-                if j == 4: ids,key,wave,distribution = id_T[i],   self.Tkeys[id_T[i]],     self.T,   self.Tamplitudes
-                if j == 5: ids,key,wave,distribution = id_TP[i],  self.TPkeys[id_TP[i]],   self.TP,  self.TPamplitudes
+                if j == 0: id,keys,waves,distribution = id_P[i],   self.Pkeys,   self.P,   self.Pamplitudes
+                if j == 1: id,keys,waves,distribution = id_PQ[i],  self.PQkeys,  self.PQ,  self.PQamplitudes
+                if j == 2: id,keys,waves,distribution = id_QRS[i], self.QRSkeys, self.QRS, self.QRSamplitudes
+                if j == 3: id,keys,waves,distribution = id_ST[i],  self.STkeys,  self.ST,  self.STamplitudes
+                if j == 4: id,keys,waves,distribution = id_T[i],   self.Tkeys,   self.T,   self.Tamplitudes
+                if j == 5: id,keys,waves,distribution = id_TP[i],  self.TPkeys,  self.TP,  self.TPamplitudes
                 if (math.floor(record_size*interp_length)-onset) >= self.N: 
                     mark_break = True
                     break
                 
-                # Common operations - skip beat
-                if ids == -1: continue # Flag for skipping unwanted beat
-                # Common operations - amplitude calculation
+                # skip beat
+                if id == -1: continue # Flag for skipping unwanted beat
+                
+                # amplitude calculation
                 amplitude = distribution.rvs(1)
-                # Common operations - segment retrieval
+                
+                # segment retrieval
                 if (j == 3) and has_TV:
                     nx = np.random.randint(32)
                     if nx < 2: continue # Avoid always having a TV with some space between QRS and T
                     segment = np.convolve(np.cumsum(norm.rvs(scale=0.01**(2*0.5),size=nx)),np.hamming(nx)/(nx//2),mode='same')
                 else:
-                    segment = amplitude*wave[key]
-                # Common operations - amplitude noising
+                    segment = amplitude*waves[keys[id]]
+
+                    # apply mixup
+                    if has_mixup[len(beats)]:
+                        segment2 = waves[keys[np.random.randint(0,len(keys))]]
+                        if segment.size != segment2.size:
+                            intlen = np.random.randint(min([segment.size,segment2.size]),max([segment.size,segment2.size]))
+                            segment = interp1d(np.linspace(0,1,segment.size),segment)(np.linspace(0,1,intlen))
+                            segment2 = interp1d(np.linspace(0,1,segment2.size),segment2)(np.linspace(0,1,intlen))
+                        (segment,_) = mixup(segment,segment2)
+                        segment /= (np.max(segment)-np.min(segment) + self.eps)
+                
+                # amplitude noising
                 segment *= 0.15*np.random.randn(1)+1 
-                # Common operations - single-segment interpolation
+                
+                # single-segment interpolation
                 if has_interpolation[len(beats)]:
                     x = np.linspace(0,1,segment.size)
                     x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.5)).clip(1)))
                     segment = interp1d(x,segment)(x_new)
-                # Common operations - right extrema elevation/depression
+                
+                # right extrema elevation/depression
                 if has_elevation[len(beats)]:
                     right_amplitude = distribution.rvs(1)*0.15
                     segment += np.sign(right_amplitude)*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
-                # Common operations - onset trailing
+                
+                # onset trailing
                 segment = trailonset(segment,beats[-1][-1] if len(beats) != 0 else 0)
-                # Common operations - final segment storage
+                
+                # final segment storage
                 mask_value = 1 if j==0 else 2 if j==2 else 3 if j==4 else 0
                 beats.append(segment)
                 masks.append(np.full((segment.size,),mask_value,dtype='int8'))
