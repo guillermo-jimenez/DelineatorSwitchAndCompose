@@ -124,13 +124,13 @@ class Dataset(torch.utils.data.Dataset):
         for i in range(self.N): # Unrealistic upper limit
             for j in range(6):
                 if (i == 0) and (j < begining_wave): continue
-                if j == 0: ids,key,wave,distribution = id_P[i],self.Pkeys[ids],self.P,self.Pamplitudes
-                if j == 1: ids,key,wave,distribution = id_PQ[i],self.PQkeys[ids],self.PQ,self.PQamplitudes
-                if j == 2: ids,key,wave,distribution = id_QRS[i],self.QRSkeys[ids],self.QRS,self.QRSamplitudes
-                if j == 3: ids,key,wave,distribution = id_ST[i],self.STkeys[ids],self.ST,self.STamplitudes
-                if j == 4: ids,key,wave,distribution = id_T[i],self.Tkeys[ids],self.T,self.Tamplitudes
-                if j == 5: ids,key,wave,distribution = id_TP[i],self.TPkeys[ids],self.TP,self.TPamplitudes
-                if (math.floor(record_size*interp_length)-onset) >= self.N:
+                if j == 0: ids,key,wave,distribution = id_P[i],   self.Pkeys[id_P[i]],     self.P,   self.Pamplitudes
+                if j == 1: ids,key,wave,distribution = id_PQ[i],  self.PQkeys[id_PQ[i]],   self.PQ,  self.PQamplitudes
+                if j == 2: ids,key,wave,distribution = id_QRS[i], self.QRSkeys[id_QRS[i]], self.QRS, self.QRSamplitudes
+                if j == 3: ids,key,wave,distribution = id_ST[i],  self.STkeys[id_ST[i]],   self.ST,  self.STamplitudes
+                if j == 4: ids,key,wave,distribution = id_T[i],   self.Tkeys[id_T[i]],     self.T,   self.Tamplitudes
+                if j == 5: ids,key,wave,distribution = id_TP[i],  self.TPkeys[id_TP[i]],   self.TP,  self.TPamplitudes
+                if (math.floor(record_size*interp_length)-onset) >= self.N: 
                     mark_break = True
                     break
                 
@@ -140,7 +140,7 @@ class Dataset(torch.utils.data.Dataset):
                 amplitude = distribution.rvs(1)
                 # Common operations - segment retrieval
                 if (j == 3) and has_TV:
-                    nx = np.random.randint(16)
+                    nx = np.random.randint(32)
                     if nx < 2: continue # Avoid always having a TV with some space between QRS and T
                     segment = np.convolve(np.cumsum(norm.rvs(scale=0.01**(2*0.5),size=nx)),np.hamming(nx)/(nx//2),mode='same')
                 else:
@@ -154,9 +154,8 @@ class Dataset(torch.utils.data.Dataset):
                     segment = interp1d(x,segment)(x_new)
                 # Common operations - right extrema elevation/depression
                 if has_elevation[len(beats)]:
-                    right_amplitude = distribution.rvs(1)
-                    right_sign = np.sign(right_amplitude)
-                    segment += right_sign*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
+                    right_amplitude = distribution.rvs(1)*0.15
+                    segment += np.sign(right_amplitude)*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
                 # Common operations - onset trailing
                 segment = trailonset(segment,beats[-1][-1] if len(beats) != 0 else 0)
                 # Common operations - final segment storage
