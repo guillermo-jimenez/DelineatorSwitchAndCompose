@@ -219,10 +219,7 @@ class Dataset(torch.utils.data.Dataset):
                 # 2. Apply amplitude modulation
                 # 2.1. Case has AF
                 if has_AF and (j in [0,5]):
-                    if j == 0:
-                        amplitude = 2*pdist
-                    elif j == 5:
-                        amplitude = pdist
+                    amplitude = pdist
                 else:
                     amplitude = distribution.rvs(1)
 
