@@ -119,7 +119,7 @@ class Dataset(torch.utils.data.Dataset):
         onset = np.random.randint(0,50)
         begining_wave = np.random.randint(0,6)
         global_amplitude = 1.+(np.random.randn(1)*self.amplitude_std)
-        interp_length = max([1.+(np.random.randn(1)*self.interp_std),0.2])
+        interp_length = max([1.+(np.random.randn(1)*self.interp_std),0.5])
 
         # Probabilities of waves
         does_not_have_P = (np.random.rand(1) > (1-self.proba_no_P))
@@ -151,9 +151,8 @@ class Dataset(torch.utils.data.Dataset):
         if has_AF:
             id_P = np.repeat(np.random.randint(0,len(self.P),size=1),self.N)
             pAF = self.P[self.Pkeys[id_P[0]]]
-            # pAF = interp1d(np.linspace(0,1,pAF.size),pAF)(np.linspace(0,1,pAF.size//2))
+            pAF = interp1d(np.linspace(0,1,pAF.size),pAF)(np.linspace(0,1,pAF.size//2))
             pdist = 4*self.Pamplitudes.rvs(1)
-            # print(np.unique(id_P))
             
         # In case QRS is not expressed
         filt_QRS = np.random.rand(self.N) > (1-self.proba_no_QRS)
@@ -184,16 +183,13 @@ class Dataset(torch.utils.data.Dataset):
                     mark_break = True
                     break
                 
-                # skip beat
+                # 0. Skip beats if not wanted, according to above rules
                 if id == -1: continue # Flag for skipping unwanted beat
                 
-                # amplitude calculation
-                amplitude = distribution.rvs(1)
+                # 1. Retrieve segment for modulation
+                segment = waves[keys[id]].copy()
 
-                # segment retrieval
-                segment = waves[keys[id]]
-
-                # apply mixup
+                # 1.1. If selected, apply mixup to segment
                 if has_mixup[len(beats)]:
                     rand_id  = np.random.randint(0,len(keys))
                     segment2 = waves[keys[rand_id]]
@@ -204,58 +200,56 @@ class Dataset(torch.utils.data.Dataset):
                     (segment,_) = mixup(segment,segment2,self.mixup_alpha,self.mixup_beta)
                     segment /= np.max(segment)-np.min(segment)+self.eps
 
-                # Apply amplitude modulation
-                segment *= amplitude
-                
-                # Apply TV to ST segment
+                # 1.2. If selected, substitute ST segment by random walk
                 if (j == 3) and has_TV:
                     nx = np.random.randint(32)
                     if nx < 2: continue # Avoid always having a TV with some space between QRS and T
                     segment = np.convolve(np.cumsum(norm.rvs(scale=0.01**(2*0.5),size=nx)),np.hamming(nx)/(nx//2),mode='same')
-                # Apply AF
-                # Apply AF
+
+                # 1.2. If selected, convolve TP segment by P wave for AF simulation
                 if has_AF:
                     if j == 0:
-                        # print("P WAVE")
-                        segment  = waves[keys[id]]
-                        # print(segment.max()-segment.min())
-                        segment *= pdist/2
-                        # print(pdist)
-                        # print(segment.max()-segment.min())
-                        # print("")
+                        segment  = waves[keys[id]].copy()
                     if j == 5:
-                        # print("TP SEGMENT")
                         i = np.random.choice([0,1])
-                        segment  = waves[keys[id]]
-                        # print(segment.max()-segment.min())
+                        segment  = waves[keys[id]].copy()
                         segment  = np.convolve(segment,np.concatenate([((-1)**(i))*pAF,((-1)**(i+1))*pAF]))
                         segment /= np.max(segment)-np.min(segment)+self.eps
-                        segment *= pdist
-                        # print(pdist)
-                        # print(segment.max()-segment.min())
-                        # print("")
-                        # print("###########")
-                        # print("")
 
-                # amplitude noising
+                # 2. Apply amplitude modulation
+                # 2.1. Case has AF
+                if has_AF and (j in [0,5]):
+                    if j == 0:
+                        amplitude = 2*pdist
+                    elif j == 5:
+                        amplitude = pdist
+                else:
+                    amplitude = distribution.rvs(1)
+
+                # 2.N. Apply the amplitude modulation on the segment
+                segment *= amplitude
+                
+                # 3. Apply segment-wise augmentations.
+                # 3.1. Per-segment amplitude noising
                 noise = 0.15*np.random.randn(1)+1
                 segment *= noise
                 
-                # single-segment interpolation
+                # 3.2. Per-segment interpolation
                 if has_interpolation[len(beats)]:
                     x = np.linspace(0,1,segment.size)
                     x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.5))))
                     segment = interp1d(x,segment)(x_new)
                 
-                # right extrema elevation/depression
+                # 3.3. Per-segment right extrema elevation/depression
                 if has_elevation[len(beats)]:
                     right_amplitude = distribution.rvs(1)*0.05
                     segment += np.random.choice([-1,1])*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
                 
-                # onset trailing
+                # 4. Segment-wise post-operations
+                # 4.1. Onset trailing for coherency
                 segment = trailonset(segment,beats[-1][-1] if len(beats) != 0 else 0)
 
-                # final segment storage
+                # 4.1. Final segment storage
                 mask_value = 1 if j==0 else 2 if j==2 else 3 if j==4 else 0
                 beats.append(segment)
                 masks.append(np.full((segment.size,),mask_value,dtype='int8'))
@@ -263,23 +257,24 @@ class Dataset(torch.utils.data.Dataset):
             if mark_break:
                 break
 
-        # Obtain final stuff
+        # 5. Registry-wise post-operations
+        # 5.1. Concatenate signal and mask
         signal = np.concatenate(beats)
         masks = np.concatenate(masks)
 
-        # Interpolate signal & mask
+        # 5.2. Interpolate signal & mask
         x = np.linspace(0,1,signal.size)
         signal = interp1d(x,signal)(np.linspace(0,1,math.ceil(signal.size*interp_length)))
         masks = interp1d(x,masks)(np.linspace(0,1,math.ceil(masks.size*interp_length))).astype(int)
 
-        # Move onset
+        # 5.3. Apply random onset for avoiding always starting with the same wave at the same location
         signal = signal[onset:onset+self.N]
         masks = masks[onset:onset+self.N]
 
-        # Modify amplitude
+        # 5.4. Apply global amplitude modulation
         signal = signal*global_amplitude
 
-        # Express as masks
+        # 5.5. Express as masks (optional)
         if self.labels_as_masks:
             masks_all = np.zeros((3,self.N),dtype=bool)
             masks_all[0,:] = (masks == 1)
@@ -288,7 +283,7 @@ class Dataset(torch.utils.data.Dataset):
         else:
             masks_all = masks.astype('int32')
 
-        # Add baseline wander
+        # 5.6. Add baseline wander
         if self.add_baseline_wander:
             signal = signal + np.convolve(np.cumsum(norm.rvs(scale=0.01**(2*0.5),size=self.N)),np.hamming(self.window)/(self.window/2),mode='same')
         
