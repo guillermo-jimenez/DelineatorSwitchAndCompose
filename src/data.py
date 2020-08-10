@@ -4,6 +4,7 @@ import numpy as np
 import math
 from scipy.stats import norm
 from scipy.interpolate import interp1d
+from utils.signal import on_off_correction
 
 
 def mixup(x1: np.ndarray, x2: np.ndarray, alpha: float = 1.0, beta: float = 1.0, axis = None, shuffle: bool = True):
@@ -173,12 +174,12 @@ class Dataset(torch.utils.data.Dataset):
         for i in range(self.N): # Unrealistic upper limit
             for j in range(6):
                 if (i == 0) and (j < begining_wave): continue
-                if j == 0: id,keys,waves,distribution = id_P[i],   self.Pkeys,   self.P,   self.Pamplitudes
-                if j == 1: id,keys,waves,distribution = id_PQ[i],  self.PQkeys,  self.PQ,  self.PQamplitudes
-                if j == 2: id,keys,waves,distribution = id_QRS[i], self.QRSkeys, self.QRS, self.QRSamplitudes
-                if j == 3: id,keys,waves,distribution = id_ST[i],  self.STkeys,  self.ST,  self.STamplitudes
-                if j == 4: id,keys,waves,distribution = id_T[i],   self.Tkeys,   self.T,   self.Tamplitudes
-                if j == 5: id,keys,waves,distribution = id_TP[i],  self.TPkeys,  self.TP,  self.TPamplitudes
+                if j==0: id,keys,waves,distribution = id_P[i],   self.Pkeys,   self.P,   self.Pamplitudes
+                if j==1: id,keys,waves,distribution = id_PQ[i],  self.PQkeys,  self.PQ,  self.PQamplitudes
+                if j==2: id,keys,waves,distribution = id_QRS[i], self.QRSkeys, self.QRS, self.QRSamplitudes
+                if j==3: id,keys,waves,distribution = id_ST[i],  self.STkeys,  self.ST,  self.STamplitudes
+                if j==4: id,keys,waves,distribution = id_T[i],   self.Tkeys,   self.T,   self.Tamplitudes
+                if j==5: id,keys,waves,distribution = id_TP[i],  self.TPkeys,  self.TP,  self.TPamplitudes
                 if (math.floor(record_size*interp_length)-onset) >= self.N: 
                     mark_break = True
                     break
@@ -201,20 +202,30 @@ class Dataset(torch.utils.data.Dataset):
                     segment /= np.max(segment)-np.min(segment)+self.eps
 
                 # 1.2. If selected, substitute ST segment by random walk
-                if (j == 3) and has_TV:
+                if (j==3) and has_TV:
                     nx = np.random.randint(32)
                     if nx < 2: continue # Avoid always having a TV with some space between QRS and T
                     segment = np.convolve(np.cumsum(norm.rvs(scale=0.01**(2*0.5),size=nx)),np.hamming(nx)/(nx//2),mode='same')
 
-                # 1.2. If selected, convolve TP segment by P wave for AF simulation
-                if has_AF:
-                    if j == 0:
-                        segment  = waves[keys[id]].copy()
-                    if j == 5:
-                        i = np.random.choice([0,1])
-                        segment  = waves[keys[id]].copy()
-                        segment  = np.convolve(segment,np.concatenate([((-1)**(i))*pAF,((-1)**(i+1))*pAF]))
-                        segment /= np.max(segment)-np.min(segment)+self.eps
+                # 1.2. If selected, convolve TP segment/random noise by P wave for AF simulation
+                if has_AF and j in [0,5]:
+                    # 1.2.1. Case is P wave
+                    if j==0:
+                        segment = np.random.randn(waves[keys[id]].size)
+                        segment = np.convolve(segment,np.hamming(segment.size)/(segment.size//2),mode='same')[segment.size//4:-segment.size//4]
+                    # 1.2.2. Case is TP segment
+                    if j==5:
+                        segment = waves[keys[id]].copy()
+                    
+                    # 1.2.3. Common operations
+                    sign = np.random.choice([0,1])
+                    segment = np.convolve(segment,np.concatenate([((-1)**(sign))*pAF,((-1)**(sign+1))*pAF]))
+                    segment = segment/(np.max(segment)-np.min(segment)+self.eps)
+                    
+                    # 1.2.4. Random cropping for P wave
+                    if j==0:
+                        on = np.random.choice([0,segment.size//4,segment.size//2])
+                        segment = on_off_correction(segment[on:on+segment.size//2])
 
                 # 2. Apply amplitude modulation
                 # 2.1. Case has AF
