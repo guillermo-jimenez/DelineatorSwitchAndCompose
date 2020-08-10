@@ -191,7 +191,7 @@ class Dataset(torch.utils.data.Dataset):
                 segment = waves[keys[id]].copy()
 
                 # 1.1. If selected, apply mixup to segment
-                if has_mixup[len(beats)]:
+                if has_mixup[len(beats)] and j in [0,2,4]:
                     rand_id  = np.random.randint(0,len(keys))
                     segment2 = waves[keys[rand_id]]
                     if segment.size != segment2.size:
@@ -273,7 +273,9 @@ class Dataset(torch.utils.data.Dataset):
         # 5.2. Interpolate signal & mask
         x = np.linspace(0,1,signal.size)
         signal = interp1d(x,signal)(np.linspace(0,1,math.ceil(signal.size*interp_length)))
-        masks = interp1d(x,masks)(np.linspace(0,1,math.ceil(masks.size*interp_length))).astype(int)
+        masks = interp1d(x,masks)(np.linspace(0,1,math.ceil(masks.size*interp_length)))
+        masks[masks%1 != 0] = 0
+        masks = masks.astype(int)
 
         # 5.3. Apply random onset for avoiding always starting with the same wave at the same location
         signal = signal[onset:onset+self.N]
