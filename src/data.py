@@ -58,7 +58,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
                  proba_elevation = 0.2, proba_interpolation = 0.2,
-                 proba_mixup = 0.5, mixup_alpha = 1.0, mixup_beta = 1.0,
+                 proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
                  proba_TV = 0.05, proba_AF = 0.05, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  window = 51, labels_as_masks = True):
