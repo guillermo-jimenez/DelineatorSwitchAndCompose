@@ -58,7 +58,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
                  proba_elevation = 0.2, proba_interpolation = 0.2,
-                 proba_mixup = 0.2, mixup_alpha = 1.0, mixup_beta = 1.0,
+                 proba_mixup = 0.5, mixup_alpha = 1.0, mixup_beta = 1.0,
                  proba_TV = 0.05, proba_AF = 0.05, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  window = 51, labels_as_masks = True):
@@ -273,9 +273,7 @@ class Dataset(torch.utils.data.Dataset):
         # 5.2. Interpolate signal & mask
         x = np.linspace(0,1,signal.size)
         signal = interp1d(x,signal)(np.linspace(0,1,math.ceil(signal.size*interp_length)))
-        masks = interp1d(x,masks)(np.linspace(0,1,math.ceil(masks.size*interp_length)))
-        masks[masks%1 != 0] = 0
-        masks = masks.astype(int)
+        masks = interp1d(x,masks,kind='next')(np.linspace(0,1,math.ceil(masks.size*interp_length))).astype(int)
 
         # 5.3. Apply random onset for avoiding always starting with the same wave at the same location
         signal = signal[onset:onset+self.N]
@@ -297,4 +295,4 @@ class Dataset(torch.utils.data.Dataset):
         if self.add_baseline_wander:
             signal = signal + np.convolve(np.cumsum(norm.rvs(scale=0.01**(2*0.5),size=self.N)),np.hamming(self.window)/(self.window/2),mode='same')
         
-        return signal[None,].astype('float32'), masks_all, beats
+        return signal[None,].astype('float32'), masks_all
