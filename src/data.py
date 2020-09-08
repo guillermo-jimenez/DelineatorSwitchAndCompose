@@ -54,7 +54,7 @@ class Dataset(torch.utils.data.Dataset):
     def __init__(self, P, QRS, T, PQ, ST, TP, 
                  Pamplitudes, QRSamplitudes, Tamplitudes, 
                  PQamplitudes, STamplitudes, TPamplitudes, 
-                 length,N = 2048, noise = 0.005, proba_no_P = 0.25,
+                 length = 32768, N = 2048, noise = 0.005, proba_no_P = 0.25,
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
                  proba_elevation = 0.2, proba_interpolation = 0.2,

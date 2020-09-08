@@ -1,6 +1,6 @@
 {
     "root_directory": "/media/guille/DADES/DADES/Delineator/Databases/",
-    "save_directory": "/media/guille/DADES/DADES/Delineator/TrainedModels/UNet5Dice",
+    "save_directory": "/media/guille/DADES/DADES/Delineator/TrainedModels/",
     "device": "cuda",
     "seed": 123456,
     "resume": false,
@@ -10,9 +10,31 @@
     "sampler": {
         "shuffle": true
     },
+    "dataset": {
+        "length": 65536,
+        "N": 2048,
+        "noise": 0.005,
+        "proba_no_P": 0.25,
+        "proba_no_QRS": 0.01,
+        "proba_no_PQ": 0.15,
+        "proba_no_ST": 0.15,
+        "proba_same_morph": 0.2,
+        "proba_elevation": 0.2,
+        "proba_interpolation": 0.2,
+        "proba_mixup": 0.25,
+        "mixup_alpha": 1.0,
+        "mixup_beta": 1.0,
+        "proba_TV": 0.05,
+        "proba_AF": 0.05,
+        "add_baseline_wander": true,
+        "amplitude_std": 0.25,
+        "interp_std": 0.25,
+        "window": 51,
+        "labels_as_masks": true
+    },
     "loader": {
-        "batch_size": 64,
-        "num_workers": 0,
+        "batch_size": 256,
+        "num_workers": 4,
         "pin_memory": true
     },
     "optimizer": {
