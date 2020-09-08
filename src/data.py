@@ -245,7 +245,7 @@ class Dataset(torch.utils.data.Dataset):
                 # 3.2. Per-segment interpolation
                 if has_interpolation[len(beats)]:
                     x = np.linspace(0,1,segment.size)
-                    x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.5))))
+                    x_new = np.linspace(0,1,int((segment.size*norm.rvs(1,0.25).clip(min=0.25))))
                     segment = interp1d(x,segment)(x_new)
                 
                 # 3.3. Per-segment right extrema elevation/depression
