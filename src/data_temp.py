@@ -7,8 +7,9 @@ import scipy
 import scipy.stats
 from scipy.stats import norm
 from scipy.interpolate import interp1d
-from utils.signal import on_off_correction
-from utils.data import ball_scaling
+
+import utils.signal
+import utils.data
 
 def mixup(x1: np.ndarray, x2: np.ndarray, alpha: float = 1.0, beta: float = 1.0, axis = None, shuffle: bool = True):
     """Adapted from original authors of paper "[1710.09412] mixup: Beyond Empirical Risk Minimization"
@@ -58,6 +59,7 @@ class Dataset(torch.utils.data.Dataset):
                  tachy_maxlen = 10, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  smoothing_window = 51, labels_as_masks = True, 
+                 scaling_metric: Callable = utils.signal.amplitude,
                  return_beats: bool = False):
         # Segments
         self.P = P
@@ -92,6 +94,7 @@ class Dataset(torch.utils.data.Dataset):
         self.mixup_beta = mixup_beta
         self.tachy_maxlen = tachy_maxlen
         self.return_beats = return_beats
+        self.scaling_metric = scaling_metric
 
         # Probabilities
         self.proba_no_P = proba_no_P
@@ -115,7 +118,7 @@ class Dataset(torch.utils.data.Dataset):
         if segment.size != second_segment.size:
             second_segment = interp1d(np.linspace(0,1,second_segment.size),second_segment)(np.linspace(0,1,segment.size))
         (segment,_) = mixup(segment,second_segment,self.mixup_alpha,self.mixup_beta)
-        segment = ball_scaling(segment)
+        segment = utils.data.ball_scaling(segment,metric=self.scaling_metric)
         return segment
 
     def __random_walk(self, scale: float = 0.01**(2*0.5), size: int = 2048, smoothing_window: int = None, conv_mode: str = 'same'):
@@ -136,12 +139,12 @@ class Dataset(torch.utils.data.Dataset):
         sign = np.random.choice([0,1])
         mirrored_template = np.concatenate([((-1)**(sign))*template,((-1)**(sign+1))*template])
         segment = np.convolve(segment, mirrored_template)
-        segment = ball_scaling(segment)
+        segment = utils.data.ball_scaling(segment,metric=self.scaling_metric)
         return segment
         
     def __apply_elevation(self, segment: np.ndarray, distribution: scipy.stats.distributions.rv_frozen):
         sign = np.random.choice([-1,1])
-        right_amplitude = distribution.rvs(1)*0.05
+        right_amplitude = distribution.rvs()*0.05
         linspace = np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2
         deviation = sign*linspace
         segment += deviation.squeeze()
@@ -156,7 +159,7 @@ class Dataset(torch.utils.data.Dataset):
             segment = self.__apply_convolution(segment, template)
             # discard extra information
             on = np.random.choice([0,segment.size//4,segment.size//2])
-            segment = on_off_correction(segment[on:on+segment.size//2])
+            segment = utils.signal.on_off_correction(segment[on:on+segment.size//2])
         return segment
 
     def __pre_PQ(self, segment: np.ndarray, dict_globals: dict, template: np.ndarray):
@@ -180,10 +183,10 @@ class Dataset(torch.utils.data.Dataset):
 
     def __apply_tachy(self, segment: np.ndarray):
         new_segment = segment[:np.random.randint(1,self.tachy_maxlen)]
-        new_segment = on_off_correction(new_segment)
+        new_segment = utils.signal.on_off_correction(new_segment)
         if new_segment.ndim == 0:
             new_segment = new_segment[:,None]
-        # new_segment = ball_scaling(new_segment)
+        # new_segment = utils.data.ball_scaling(new_segment,metric=self.scaling_metric)
         return new_segment
 
     def __get_segment(self, id: int, keys: dict, waves: dict, 
@@ -204,7 +207,7 @@ class Dataset(torch.utils.data.Dataset):
         if segment.size > 0:
             ####################################################################################
             # 2. Apply amplitude modulation
-            amplitude = distribution.rvs(1) # Get the amplitude
+            amplitude = distribution.rvs() # Get the amplitude
             segment *= amplitude # Apply amplitude on segment
             
             # 3. Per-segment amplitude noising
@@ -312,7 +315,7 @@ class Dataset(torch.utils.data.Dataset):
             dict_IDs['P'] = np.repeat(np.random.randint(len(self.P),size=1),self.N)
             pAF = self.P[self.Pkeys[dict_IDs['P'][0]]]
             pAF = interp1d(np.linspace(0,1,pAF.size),pAF)(np.linspace(0,1,pAF.size//2))
-            pdist = 4*self.Pamplitudes.rvs(1)
+            pdist = 4*self.Pamplitudes.rvs()
             templates['P'] = pdist*pAF
             templates['TP'] = pdist*pAF
             
@@ -417,7 +420,7 @@ class Dataset(torch.utils.data.Dataset):
     #         id_P = np.repeat(np.random.randint(len(self.P),size=1),self.N)
     #         pAF = self.P[self.Pkeys[id_P[0]]]
     #         pAF = interp1d(np.linspace(0,1,pAF.size),pAF)(np.linspace(0,1,pAF.size//2))
-    #         pdist = 4*self.Pamplitudes.rvs(1)
+    #         pdist = 4*self.Pamplitudes.rvs()
             
     #     # In case QRS is not expressed
     #     filt_QRS = np.random.rand(self.N) > (1-self.proba_no_QRS)
@@ -461,8 +464,8 @@ class Dataset(torch.utils.data.Dataset):
     #                 segment = segment[:np.random.randint(self.tachy_maxlen)]
     #                 if segment.size < 2:
     #                     continue
-    #                 segment = on_off_correction(segment)
-    #                 segment = ball_scaling(segment)
+    #                 segment = utils.signal.on_off_correction(segment)
+    #                 segment = utils.data.ball_scaling(segment,metric=self.scaling_metric)
 
     #             # 1.2. If selected, substitute ST segment by random walk
     #             if (j==3) and has_TV:
@@ -483,19 +486,19 @@ class Dataset(torch.utils.data.Dataset):
     #                 # 1.2.3. Common operations
     #                 sign = np.random.choice([0,1])
     #                 segment = np.convolve(segment,np.concatenate([((-1)**(sign))*pAF,((-1)**(sign+1))*pAF]))
-    #                 segment = ball_scaling(segment)
+    #                 segment = utils.data.ball_scaling(segment,metric=self.scaling_metric)
                     
     #                 # 1.2.4. Random cropping for P wave
     #                 if j==0:
     #                     on = np.random.choice([0,segment.size//4,segment.size//2])
-    #                     segment = on_off_correction(segment[on:on+segment.size//2])
+    #                     segment = utils.signal.on_off_correction(segment[on:on+segment.size//2])
 
     #             # 2. Apply amplitude modulation
     #             # 2.1. Case has AF
     #             if has_AF and (j in [0,5]):
     #                 amplitude = pdist
     #             else:
-    #                 amplitude = distribution.rvs(1)
+    #                 amplitude = distribution.rvs()
 
     #             # 2.N. Apply the amplitude modulation on the segment
     #             segment *= amplitude
@@ -513,7 +516,7 @@ class Dataset(torch.utils.data.Dataset):
                 
     #             # 3.3. Per-segment right extrema elevation/depression
     #             if has_elevation[len(beats)]:
-    #                 right_amplitude = distribution.rvs(1)*0.05
+    #                 right_amplitude = distribution.rvs()*0.05
     #                 segment += np.random.choice([-1,1])*(np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2).squeeze()
                 
     #             # 4. Segment-wise post-operations
