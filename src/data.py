@@ -59,7 +59,8 @@ class Dataset(torch.utils.data.Dataset):
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
                  proba_elevation = 0.2, proba_interpolation = 0.2,
                  proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
-                 proba_TV = 0.05, proba_AF = 0.05, add_baseline_wander = True, 
+                 proba_TV = 0.05, proba_AF = 0.05, proba_tachy = 0.05, 
+                 tachy_maxlen = 10, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  window = 51, labels_as_masks = True):
         # Segments
@@ -93,6 +94,7 @@ class Dataset(torch.utils.data.Dataset):
         self.interp_std = interp_std
         self.mixup_alpha = mixup_alpha
         self.mixup_beta = mixup_beta
+        self.tachy_maxlen = tachy_maxlen
 
         # Probabilities
         self.proba_no_P = proba_no_P
@@ -105,6 +107,7 @@ class Dataset(torch.utils.data.Dataset):
         self.proba_elevation = proba_elevation
         self.proba_interpolation = proba_interpolation
         self.proba_mixup = proba_mixup
+        self.proba_tachy = proba_tachy
 
         # Utility
         self.eps = np.finfo('float').eps
@@ -123,15 +126,16 @@ class Dataset(torch.utils.data.Dataset):
         interp_length = max([1.+(np.random.randn(1)*self.interp_std),0.5])
 
         # Probabilities of waves
-        does_not_have_P = (np.random.rand(1) > (1-self.proba_no_P))
-        does_not_have_PQ = (np.random.rand(1) > (1-self.proba_no_PQ))
-        does_not_have_ST = (np.random.rand(1) > (1-self.proba_no_ST))
-        has_TV = (np.random.rand(1) > (1-self.proba_TV))
-        has_AF = (np.random.rand(1) > (1-self.proba_AF))
-        has_same_morph = (np.random.rand(1) > (1-self.proba_same_morph))
-        has_elevation = (np.random.rand(self.N) > (1-self.proba_elevation))
-        has_interpolation = (np.random.rand(self.N) > (1-self.proba_interpolation))
-        has_mixup = (np.random.rand(self.N) > (1-self.proba_mixup))
+        does_not_have_P = np.random.rand(1) > (1-self.proba_no_P)
+        does_not_have_PQ = np.random.rand(1) > (1-self.proba_no_PQ)
+        does_not_have_ST = np.random.rand(1) > (1-self.proba_no_ST)
+        has_TV = np.random.rand(1) > (1-self.proba_TV)
+        has_AF = np.random.rand(1) > (1-self.proba_AF)
+        has_same_morph = np.random.rand(1) > (1-self.proba_same_morph)
+        has_tachy = np.random.rand(1) > (1-self.proba_tachy)
+        has_elevation = np.random.rand(self.N) > (1-self.proba_elevation)
+        has_interpolation = np.random.rand(self.N) > (1-self.proba_interpolation)
+        has_mixup = np.random.rand(self.N) > (1-self.proba_mixup)
 
         ##### Identifiers
         if has_same_morph:
@@ -199,6 +203,12 @@ class Dataset(torch.utils.data.Dataset):
                         segment  = interp1d(np.linspace(0,1,segment.size),segment)(np.linspace(0,1,intlen))
                         segment2 = interp1d(np.linspace(0,1,segment2.size),segment2)(np.linspace(0,1,intlen))
                     (segment,_) = mixup(segment,segment2,self.mixup_alpha,self.mixup_beta)
+                    segment /= np.max(segment)-np.min(segment)+self.eps
+                elif has_tachy and j in [3,5]:
+                    segment = segment[:np.random.randint(self.tachy_maxlen)]
+                    if segment.size < 2:
+                        continue
+                    segment = on_off_correction(segment)
                     segment /= np.max(segment)-np.min(segment)+self.eps
 
                 # 1.2. If selected, substitute ST segment by random walk
