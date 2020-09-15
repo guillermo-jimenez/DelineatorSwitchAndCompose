@@ -34,27 +34,27 @@ class Dataset(torch.utils.data.Dataset):
         # P wave
         self.P = P
         self.Pdistribution = Pdistribution
-        self.Pkeys = list(P.keys())
+        self.Pkeys = list(P)
         # PQ wave
         self.PQ = PQ
         self.PQdistribution = PQdistribution
-        self.PQkeys = list(PQ.keys())
+        self.PQkeys = list(PQ)
         # QRS wave
         self.QRS = QRS
-        self.QRSkeys = list(QRS.keys())
+        self.QRSkeys = list(QRS)
         self.QRSdistribution = QRSdistribution
         # ST wave
         self.ST = ST
         self.STdistribution = STdistribution
-        self.STkeys = list(ST.keys())
+        self.STkeys = list(ST)
         # T wave
         self.T = T
         self.Tdistribution = Tdistribution
-        self.Tkeys = list(T.keys())
+        self.Tkeys = list(T)
         # TP wave
         self.TP = TP
         self.TPdistribution = TPdistribution
-        self.TPkeys = list(TP.keys())
+        self.TPkeys = list(TP)
         
         #### Generation hyperparams ####
         # Ints'n'stuff
