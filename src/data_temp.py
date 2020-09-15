@@ -10,39 +10,7 @@ from scipy.interpolate import interp1d
 
 import utils.signal
 import utils.data
-
-def mixup(x1: np.ndarray, x2: np.ndarray, alpha: float = 1.0, beta: float = 1.0, axis = None, shuffle: bool = True):
-    """Adapted from original authors of paper "[1710.09412] mixup: Beyond Empirical Risk Minimization"
-    GitHub: https://github.com/facebookresearch/mixup-cifar10/
-    """
-
-    # Compute lambda. If hyperparams are incorrect, your loss
-    lmbda = np.random.beta(alpha, beta)
-
-    if axis is None:
-        axis = 0
-        shuffle = False # The default indicates that no batch is used
-
-    # Swap axes to generalize for n-dimensional tensor
-    x1 = np.swapaxes(x1,axis,0) # Compatible with pytorch
-    x2 = np.swapaxes(x2,axis,0) # Compatible with pytorch
-
-    # Permutation along data axis (allowing batch mixup)
-    if shuffle:
-        index = np.random.permutation(np.arange(x2.shape[0])) # Compatible with pytorch
-
-        # Mix datapoints. If shapes are incompatible, your loss
-        xhat = lmbda * x1 + (1 - lmbda) * x2[index, :]
-    else:
-        # Mix datapoints. If shapes are incompatible, your loss
-        xhat = lmbda * x1 + (1 - lmbda) * x2
-    
-    # Swap axes back
-    xhat = np.swapaxes(xhat,axis,0) # Compatible with pytorch
-
-    # Return mixed point and lambda. Left label computation to be project-specific
-    return xhat, lmbda
-
+import utils.data.augmentation
 
 class Dataset(torch.utils.data.Dataset):
     '''Generates data for PyTorch'''
@@ -59,29 +27,37 @@ class Dataset(torch.utils.data.Dataset):
                  tachy_maxlen = 10, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  smoothing_window = 51, labels_as_masks = True, 
+                 QRS_ampl_low_thres = 0.1, QRS_ampl_high_thres = 1.15,
                  scaling_metric: Callable = utils.signal.amplitude,
                  return_beats: bool = False):
-        # Segments
+        #### Segments ####
+        # P wave
         self.P = P
-        self.QRS = QRS
-        self.T = T
-        self.PQ = PQ
-        self.ST = ST
-        self.TP = TP
         self.Pamplitudes = Pamplitudes
-        self.QRSamplitudes = QRSamplitudes
-        self.Tamplitudes = Tamplitudes
-        self.PQamplitudes = PQamplitudes
-        self.STamplitudes = STamplitudes
-        self.TPamplitudes = TPamplitudes
         self.Pkeys = list(P.keys())
-        self.QRSkeys = list(QRS.keys())
-        self.Tkeys = list(T.keys())
+        # PQ wave
+        self.PQ = PQ
+        self.PQamplitudes = PQamplitudes
         self.PQkeys = list(PQ.keys())
+        # QRS wave
+        self.QRS = QRS
+        self.QRSkeys = list(QRS.keys())
+        self.QRSamplitudes = QRSamplitudes
+        # ST wave
+        self.ST = ST
+        self.STamplitudes = STamplitudes
         self.STkeys = list(ST.keys())
+        # T wave
+        self.T = T
+        self.Tamplitudes = Tamplitudes
+        self.Tkeys = list(T.keys())
+        # TP wave
+        self.TP = TP
+        self.TPamplitudes = TPamplitudes
         self.TPkeys = list(TP.keys())
         
-        # Generation hyperparams
+        #### Generation hyperparams ####
+        # Ints'n'stuff
         self.length = length
         self.N = N
         self.noise = noise
@@ -95,7 +71,8 @@ class Dataset(torch.utils.data.Dataset):
         self.tachy_maxlen = tachy_maxlen
         self.return_beats = return_beats
         self.scaling_metric = scaling_metric
-
+        self.QRS_ampl_low_thres = QRS_ampl_low_thres
+        self.QRS_ampl_high_thres = QRS_ampl_high_thres
         # Probabilities
         self.proba_no_P = proba_no_P
         self.proba_no_QRS = proba_no_QRS
@@ -112,14 +89,6 @@ class Dataset(torch.utils.data.Dataset):
     def __len__(self):
         '''Denotes the number of elements in the dataset'''
         return self.length
-
-    def __apply_mixup(self, segment: np.ndarray, keys, waves, distribution):
-        second_segment = waves[keys[np.random.randint(len(keys))]]
-        if segment.size != second_segment.size:
-            second_segment = interp1d(np.linspace(0,1,second_segment.size),second_segment)(np.linspace(0,1,segment.size))
-        (segment,_) = mixup(segment,second_segment,self.mixup_alpha,self.mixup_beta)
-        segment = utils.data.ball_scaling(segment,metric=self.scaling_metric)
-        return segment
 
     def __random_walk(self, scale: float = 0.01**(2*0.5), size: int = 2048, smoothing_window: int = None, conv_mode: str = 'same'):
         noise = np.cumsum(norm.rvs(scale=scale,size=size))
@@ -142,13 +111,60 @@ class Dataset(torch.utils.data.Dataset):
         segment = utils.data.ball_scaling(segment,metric=self.scaling_metric)
         return segment
         
-    def __apply_elevation(self, segment: np.ndarray, distribution: scipy.stats.distributions.rv_frozen):
+    def __apply_elevation(self, segment: np.ndarray, type: str):
+        # Retrieve amplitude
+        right_amplitude = self.distribution_draw(type)*0.05
+        # Randomly choose elevation/depression
         sign = np.random.choice([-1,1])
-        right_amplitude = distribution.rvs()*0.05
+        # Compute deviation (cuadratic at the moment)
         linspace = np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2
         deviation = sign*linspace
+        # Apply to segment
         segment += deviation.squeeze()
         return segment
+
+    def distribution_draw(self, type: str):
+        distribution = self.get_distribution(type)
+        if type == 'QRS': 
+            amplitude = np.inf
+            while (amplitude < self.QRS_ampl_low_thres) or (amplitude > self.QRS_ampl_high_thres):
+                amplitude = distribution.rvs()
+            amplitude = amplitude.clip(max=1)
+        else:
+            amplitude = distribution.rvs()
+        return amplitude
+
+    def get_distribution(self, type: str):
+        if   type == 'P':   return self.Pamplitudes
+        elif type == 'PQ':  return self.PQamplitudes
+        elif type == 'QRS': return self.QRSamplitudes
+        elif type == 'ST':  return self.STamplitudes
+        elif type == 'T':   return self.Tamplitudes
+        elif type == 'TP':  return self.TPamplitudes
+
+    def get_keys(self, type: str):
+        if   type == 'P':   return self.Pkeys
+        elif type == 'PQ':  return self.PQkeys
+        elif type == 'QRS': return self.QRSkeys
+        elif type == 'ST':  return self.STkeys
+        elif type == 'T':   return self.Tkeys
+        elif type == 'TP':  return self.TPkeys
+
+    def get_waves(self, type: str):
+        if   type == 'P':   return self.P
+        elif type == 'PQ':  return self.PQ
+        elif type == 'QRS': return self.QRS
+        elif type == 'ST':  return self.ST
+        elif type == 'T':   return self.T
+        elif type == 'TP':  return self.TP
+
+    def __get_pre_function(self, type: str):
+        if   type == 'P':   return self.__pre_P
+        elif type == 'PQ':  return self.__pre_PQ
+        elif type == 'QRS': return self.__pre_QRS
+        elif type == 'ST':  return self.__pre_ST
+        elif type == 'T':   return self.__pre_T
+        elif type == 'TP':  return self.__pre_TP
 
     def __pre_P(self, segment: np.ndarray, dict_globals: dict, template: np.ndarray):
         if dict_globals['has_AF']:
@@ -189,16 +205,22 @@ class Dataset(torch.utils.data.Dataset):
         # new_segment = utils.data.ball_scaling(new_segment,metric=self.scaling_metric)
         return new_segment
 
-    def __get_segment(self, id: int, keys: dict, waves: dict, 
-                      distribution: scipy.stats.distributions.rv_frozen, 
-                      pre_fnc: Callable, dict_globals: dict, type: str, 
-                      onset: int, template: np.ndarray = None):
+    def __get_segment(self, id: int, type: str, dict_globals: dict, onset: int, template: np.ndarray = None):
+        # 0. Get wave information
+        waves = self.get_waves(type)
+        keys = self.get_keys(type)
+        pre_fnc = self.__get_pre_function(type)
+        
         # 1. Retrieve segment for modulation
         segment = waves[keys[id]].copy()
 
-        # 2. If selected, apply mixup to segment
+        # 2. Apply mixup to segment (if applicable)
         if (np.random.rand(1) < self.proba_mixup) and (type in ['P','QRS','T']):
-            segment = self.__apply_mixup(segment, keys, waves, distribution)
+            second_segment = waves[keys[np.random.randint(len(keys))]]
+            if segment.size != second_segment.size:
+                second_segment = interp1d(np.linspace(0,1,second_segment.size),second_segment)(np.linspace(0,1,segment.size))
+            (segment,_) = utils.data.augmentation.mixup(segment,second_segment,self.mixup_alpha,self.mixup_beta)
+            segment = utils.data.ball_scaling(segment,metric=self.scaling_metric)
 
         # 3. Apply wave_specific modifications to the segment
         segment = pre_fnc(segment, dict_globals, template)
@@ -207,8 +229,7 @@ class Dataset(torch.utils.data.Dataset):
         if segment.size > 0:
             ####################################################################################
             # 2. Apply amplitude modulation
-            amplitude = distribution.rvs() # Get the amplitude
-            segment *= amplitude # Apply amplitude on segment
+            segment *= self.distribution_draw(type) # Apply amplitude on segment
             
             # 3. Per-segment amplitude noising
             noise = 0.15*np.random.randn(1)+1
@@ -223,7 +244,7 @@ class Dataset(torch.utils.data.Dataset):
             
             # 5. Per-segment right extrema elevation/depression
             if np.random.rand(1) < self.proba_elevation:
-                segment = self.__apply_elevation(segment, distribution)
+                segment = self.__apply_elevation(segment, type)
             
             # 6. Onset trailing
             segment = self.__trail_onset(segment, onset)
@@ -250,17 +271,13 @@ class Dataset(torch.utils.data.Dataset):
             # Define type
             type = types[i]
 
-            # Retrieve distributions
-            if type=='P':   id,keys,waves,distribution,pre_fnc = dict_IDs[type][i],   self.Pkeys,   self.P,   self.Pamplitudes, self.__pre_P
-            if type=='PQ':  id,keys,waves,distribution,pre_fnc = dict_IDs[type][i],  self.PQkeys,  self.PQ,  self.PQamplitudes, self.__pre_PQ
-            if type=='QRS': id,keys,waves,distribution,pre_fnc = dict_IDs[type][i], self.QRSkeys, self.QRS, self.QRSamplitudes, self.__pre_QRS
-            if type=='ST':  id,keys,waves,distribution,pre_fnc = dict_IDs[type][i],  self.STkeys,  self.ST,  self.STamplitudes, self.__pre_ST
-            if type=='T':   id,keys,waves,distribution,pre_fnc = dict_IDs[type][i],   self.Tkeys,   self.T,   self.Tamplitudes, self.__pre_T
-            if type=='TP':  id,keys,waves,distribution,pre_fnc = dict_IDs[type][i],  self.TPkeys,  self.TP,  self.TPamplitudes, self.__pre_TP
+            # Get ID for this wave and template (if any)
+            id = dict_IDs[type][i]
+            template = templates.get(type,None)
 
             # Retrieve segment information
-            seg,msk = self.__get_segment(id, keys, waves, distribution, pre_fnc,
-                                         dict_globals, type, onset, templates.get(type,None))
+            seg,msk = self.__get_segment(id, type, dict_globals, onset, template)
+
             # Add segment to output
             beats.append(seg)
             masks.append(msk)
