@@ -16,8 +16,8 @@ class Dataset(torch.utils.data.Dataset):
     '''Generates data for PyTorch'''
 
     def __init__(self, P, QRS, T, PQ, ST, TP, 
-                 Pamplitudes, QRSamplitudes, Tamplitudes, 
-                 PQamplitudes, STamplitudes, TPamplitudes, 
+                 Pdistribution, QRSdistribution, Tdistribution, 
+                 PQdistribution, STdistribution, TPdistribution, 
                  length = 32768, N = 2048, noise = 0.005, proba_no_P = 0.25,
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
@@ -33,27 +33,27 @@ class Dataset(torch.utils.data.Dataset):
         #### Segments ####
         # P wave
         self.P = P
-        self.Pamplitudes = Pamplitudes
+        self.Pdistribution = Pdistribution
         self.Pkeys = list(P.keys())
         # PQ wave
         self.PQ = PQ
-        self.PQamplitudes = PQamplitudes
+        self.PQdistribution = PQdistribution
         self.PQkeys = list(PQ.keys())
         # QRS wave
         self.QRS = QRS
         self.QRSkeys = list(QRS.keys())
-        self.QRSamplitudes = QRSamplitudes
+        self.QRSdistribution = QRSdistribution
         # ST wave
         self.ST = ST
-        self.STamplitudes = STamplitudes
+        self.STdistribution = STdistribution
         self.STkeys = list(ST.keys())
         # T wave
         self.T = T
-        self.Tamplitudes = Tamplitudes
+        self.Tdistribution = Tdistribution
         self.Tkeys = list(T.keys())
         # TP wave
         self.TP = TP
-        self.TPamplitudes = TPamplitudes
+        self.TPdistribution = TPdistribution
         self.TPkeys = list(TP.keys())
         
         #### Generation hyperparams ####
@@ -135,12 +135,12 @@ class Dataset(torch.utils.data.Dataset):
         return amplitude
 
     def get_distribution(self, type: str):
-        if   type == 'P':   return self.Pamplitudes
-        elif type == 'PQ':  return self.PQamplitudes
-        elif type == 'QRS': return self.QRSamplitudes
-        elif type == 'ST':  return self.STamplitudes
-        elif type == 'T':   return self.Tamplitudes
-        elif type == 'TP':  return self.TPamplitudes
+        if   type == 'P':   return self.Pdistribution
+        elif type == 'PQ':  return self.PQdistribution
+        elif type == 'QRS': return self.QRSdistribution
+        elif type == 'ST':  return self.STdistribution
+        elif type == 'T':   return self.Tdistribution
+        elif type == 'TP':  return self.TPdistribution
 
     def get_keys(self, type: str):
         if   type == 'P':   return self.Pkeys
@@ -332,7 +332,7 @@ class Dataset(torch.utils.data.Dataset):
             dict_IDs['P'] = np.repeat(np.random.randint(len(self.P),size=1),self.N)
             pAF = self.P[self.Pkeys[dict_IDs['P'][0]]]
             pAF = interp1d(np.linspace(0,1,pAF.size),pAF)(np.linspace(0,1,pAF.size//2))
-            pdist = 4*self.Pamplitudes.rvs()
+            pdist = 4*self.Pdistribution.rvs()
             templates['P'] = pdist*pAF
             templates['TP'] = pdist*pAF
             
@@ -437,7 +437,7 @@ class Dataset(torch.utils.data.Dataset):
     #         id_P = np.repeat(np.random.randint(len(self.P),size=1),self.N)
     #         pAF = self.P[self.Pkeys[id_P[0]]]
     #         pAF = interp1d(np.linspace(0,1,pAF.size),pAF)(np.linspace(0,1,pAF.size//2))
-    #         pdist = 4*self.Pamplitudes.rvs()
+    #         pdist = 4*self.Pdistribution.rvs()
             
     #     # In case QRS is not expressed
     #     filt_QRS = np.random.rand(self.N) > (1-self.proba_no_QRS)
@@ -458,12 +458,12 @@ class Dataset(torch.utils.data.Dataset):
     #     for i in range(self.N): # Unrealistic upper limit
     #         for j in range(6):
     #             if (i == 0) and (j < begining_wave): continue
-    #             if j==0: id,keys,waves,distribution = id_P[i],   self.Pkeys,   self.P,   self.Pamplitudes
-    #             if j==1: id,keys,waves,distribution = id_PQ[i],  self.PQkeys,  self.PQ,  self.PQamplitudes
-    #             if j==2: id,keys,waves,distribution = id_QRS[i], self.QRSkeys, self.QRS, self.QRSamplitudes
-    #             if j==3: id,keys,waves,distribution = id_ST[i],  self.STkeys,  self.ST,  self.STamplitudes
-    #             if j==4: id,keys,waves,distribution = id_T[i],   self.Tkeys,   self.T,   self.Tamplitudes
-    #             if j==5: id,keys,waves,distribution = id_TP[i],  self.TPkeys,  self.TP,  self.TPamplitudes
+    #             if j==0: id,keys,waves,distribution = id_P[i],   self.Pkeys,   self.P,   self.Pdistribution
+    #             if j==1: id,keys,waves,distribution = id_PQ[i],  self.PQkeys,  self.PQ,  self.PQdistribution
+    #             if j==2: id,keys,waves,distribution = id_QRS[i], self.QRSkeys, self.QRS, self.QRSdistribution
+    #             if j==3: id,keys,waves,distribution = id_ST[i],  self.STkeys,  self.ST,  self.STdistribution
+    #             if j==4: id,keys,waves,distribution = id_T[i],   self.Tkeys,   self.T,   self.Tdistribution
+    #             if j==5: id,keys,waves,distribution = id_TP[i],  self.TPkeys,  self.TP,  self.TPdistribution
     #             if (math.floor(record_size*interp_length)-onset) >= self.N: 
     #                 mark_break = True
     #                 break
