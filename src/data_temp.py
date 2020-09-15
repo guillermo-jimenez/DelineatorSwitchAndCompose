@@ -205,7 +205,7 @@ class Dataset(torch.utils.data.Dataset):
         # new_segment = utils.data.ball_scaling(new_segment,metric=self.scaling_metric)
         return new_segment
 
-    def __get_segment(self, id: int, type: str, dict_globals: dict, onset: int, template: np.ndarray = None):
+    def __generate_segment(self, id: int, type: str, dict_globals: dict, onset: int, template: np.ndarray = None):
         # 0. Get wave information
         waves = self.get_waves(type)
         keys = self.get_keys(type)
@@ -230,7 +230,7 @@ class Dataset(torch.utils.data.Dataset):
             ####################################################################################
             # 2. Apply amplitude modulation
             segment *= self.distribution_draw(type) # Apply amplitude on segment
-            
+
             # 3. Per-segment amplitude noising
             noise = 0.15*np.random.randn(1)+1
             segment *= noise
@@ -276,7 +276,7 @@ class Dataset(torch.utils.data.Dataset):
             template = templates.get(type,None)
 
             # Retrieve segment information
-            seg,msk = self.__get_segment(id, type, dict_globals, onset, template)
+            seg,msk = self.__generate_segment(id, type, dict_globals, onset, template)
 
             # Add segment to output
             beats.append(seg)
