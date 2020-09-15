@@ -255,7 +255,7 @@ class Dataset(torch.utils.data.Dataset):
 
         return segment, mask
 
-    def __get_cycle(self, index: int, onset: float, dict_globals: dict, dict_IDs: dict, templates: dict = {}, record_size: int = None):
+    def __generate_cycle(self, index: int, onset: float, dict_globals: dict, dict_IDs: dict, templates: dict = {}, record_size: int = None):
         # Init output
         beats = []
         masks = []
@@ -353,7 +353,7 @@ class Dataset(torch.utils.data.Dataset):
         record_size = 0
         onset = 0.0
         for i in range(self.N): # Unrealistic upper limit
-            bts, msk, record_size, onset, mark_break = self.__get_cycle(i, onset, dict_globals, dict_IDs, templates, record_size)
+            bts, msk, record_size, onset, mark_break = self.__generate_cycle(i, onset, dict_globals, dict_IDs, templates, record_size)
             beats += bts
             masks += msk
             if mark_break:
