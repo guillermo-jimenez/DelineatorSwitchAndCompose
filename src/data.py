@@ -101,7 +101,7 @@ class Dataset(torch.utils.data.Dataset):
         return x
 
 
-    def __random_walk(self, scale: float = 0.01**(2*0.5), size: int = 2048, smoothing_window: int = None, conv_mode: str = 'same'):
+    def random_walk(self, scale: float = 0.01**(2*0.5), size: int = 2048, smoothing_window: int = None, conv_mode: str = 'same'):
         noise = np.cumsum(norm.rvs(scale=scale,size=size))
         if smoothing_window is not None:
             window = np.hamming(smoothing_window)/(smoothing_window//2)
@@ -109,18 +109,20 @@ class Dataset(torch.utils.data.Dataset):
         return noise
 
 
-    def __trail_onset(self,segment,onset):
+    def trail_onset(self, segment: np.ndarray, onset: float):
         onset = onset-segment[0]
         off = onset-segment[0]+segment[-1]
         segment = segment+np.linspace(onset,off,segment.size,dtype=segment.dtype)
         return segment
 
 
-    def __apply_elevation(self, segment: np.ndarray, type: str, amplitude_modifier: float = 0.05):
+    def apply_elevation(self, segment: np.ndarray, type: str, amplitude_modifier: float = 0.05, sign: [-1,1] = None):
+        segment = np.copy(segment)
         # Retrieve amplitude
         amplitude = self.distribution_draw(type)*amplitude_modifier
         # Randomly choose elevation/depression
-        sign = np.random.choice([-1,1])
+        if (sign not in [-1,1]) and (sign is not None):
+            sign = np.random.choice([-1,1])
         # Compute deviation (cuadratic at the moment)
         linspace = np.linspace(0,np.sqrt(np.abs(amplitude)),segment.size)**2
         deviation = sign*linspace
@@ -168,42 +170,42 @@ class Dataset(torch.utils.data.Dataset):
         elif type == 'TP':  return self.TP
 
 
-    def __get_segment_post_function(self, type: str):
-        if   type == 'P':   return self.__P_segment_post_operation
-        elif type == 'PQ':  return self.__PQ_segment_post_operation
-        elif type == 'QRS': return self.__QRS_segment_post_operation
-        elif type == 'ST':  return self.__ST_segment_post_operation
-        elif type == 'T':   return self.__T_segment_post_operation
-        elif type == 'TP':  return self.__TP_segment_post_operation
+    def get_segment_post_function(self, type: str):
+        if   type == 'P':   return self.P_post_operation
+        elif type == 'PQ':  return self.PQ_post_operation
+        elif type == 'QRS': return self.QRS_post_operation
+        elif type == 'ST':  return self.ST_post_operation
+        elif type == 'T':   return self.T_post_operation
+        elif type == 'TP':  return self.TP_post_operation
     
-    def __P_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def P_post_operation(self, segment: np.ndarray, dict_globals: dict):
         return segment
 
 
-    def __PQ_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def PQ_post_operation(self, segment: np.ndarray, dict_globals: dict):
         return segment
 
 
-    def __QRS_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def QRS_post_operation(self, segment: np.ndarray, dict_globals: dict):
         return segment
 
 
-    def __ST_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
-        if   dict_globals['has_TV']:    segment = self.__random_walk(size=np.random.randint(2,32))
-        elif dict_globals['has_tachy']: segment = self.__apply_tachy(segment)
+    def ST_post_operation(self, segment: np.ndarray, dict_globals: dict):
+        if   dict_globals['has_TV']:    segment = self.random_walk(size=np.random.randint(2,32))
+        elif dict_globals['has_tachy']: segment = self.apply_tachy(segment)
         return segment
 
 
-    def __T_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def T_post_operation(self, segment: np.ndarray, dict_globals: dict):
         return segment
 
 
-    def __TP_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
-        if dict_globals['has_tachy']:   segment = self.__apply_tachy(segment)
+    def TP_post_operation(self, segment: np.ndarray, dict_globals: dict):
+        if dict_globals['has_tachy']:   segment = self.apply_tachy(segment)
         return segment
 
 
-    def __apply_tachy(self, segment: np.ndarray):
+    def apply_tachy(self, segment: np.ndarray):
         new_segment = segment[:np.random.randint(1,self.tachy_maxlen)]
         new_segment = utils.signal.on_off_correction(new_segment)
         if new_segment.ndim == 0:
@@ -243,9 +245,9 @@ class Dataset(torch.utils.data.Dataset):
         signal = signal*dict_globals['global_amplitude']
 
         # 5.4. Apply whole-signal modifications
-        if self.add_baseline_wander:     signal += self.__random_walk(size=signal.size,smoothing_window=self.smoothing_window)
-        if dict_globals['has_AF']:       signal = self.__apply_AF(signal)
-        if dict_globals['has_flatline']: signal, masks = self.__add_flatline(signal, masks, dict_globals)
+        if self.add_baseline_wander:     signal += self.random_walk(size=signal.size,smoothing_window=self.smoothing_window)
+        if dict_globals['has_AF']:       signal = self.apply_AF(signal)
+        if dict_globals['has_flatline']: signal, masks = self.add_flatline(signal, masks, dict_globals)
         
         # 5.5. Apply random onset for avoiding always starting with the same wave at the same location
         on = dict_globals['index_onset']
@@ -313,7 +315,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def segment_post_operation(self, type: str, segment: np.ndarray, dict_globals: dict):
-        post_segment_fnc = self.__get_segment_post_function(type)
+        post_segment_fnc = self.get_segment_post_function(type)
         
         # Apply wave-specific modifications to the segment
         segment = post_segment_fnc(segment, dict_globals)
@@ -321,7 +323,7 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def __add_flatline(self, signal: np.ndarray, masks: np.ndarray, dict_globals: dict) -> Tuple[np.ndarray, np.ndarray]:
+    def add_flatline(self, signal: np.ndarray, masks: np.ndarray, dict_globals: dict) -> Tuple[np.ndarray, np.ndarray]:
         signal = np.pad(signal, (dict_globals['flatline_left'],dict_globals['flatline_right']), mode='edge')
         if self.labels_as_masks:
             masks = np.pad(masks, ((0,0),(dict_globals['flatline_left'],dict_globals['flatline_right'])), mode='constant', constant_values=0)
@@ -364,7 +366,7 @@ class Dataset(torch.utils.data.Dataset):
 
         # Apply right extrema elevation/depression
         if np.random.rand() < self.proba_elevation:
-            segment = self.__apply_elevation(segment, type)
+            segment = self.apply_elevation(segment, type)
         
         return segment
 
@@ -372,7 +374,7 @@ class Dataset(torch.utils.data.Dataset):
     def trail_onsets(self, beats: list):
         onset = 0.0
         for i,segment in enumerate(beats):
-            segment = self.__trail_onset(segment, onset)
+            segment = self.trail_onset(segment, onset)
             beats[i] = segment
             onset = segment[-1]
         return beats
@@ -478,7 +480,7 @@ class Dataset(torch.utils.data.Dataset):
         return dict_IDs
 
 
-    def __apply_AF(self, signal: np.ndarray):
+    def apply_AF(self, signal: np.ndarray):
         # select random P wave as template
         pAF = self.get_segment('P')
         N = signal.size
