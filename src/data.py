@@ -73,6 +73,8 @@ class Dataset(torch.utils.data.Dataset):
         self.scaling_metric = scaling_metric
         self.QRS_ampl_low_thres = QRS_ampl_low_thres
         self.QRS_ampl_high_thres = QRS_ampl_high_thres
+        if isinstance(self.scaling_metric,str):
+            self.scaling_metric = eval(self.scaling_metric)
         # Probabilities
         self.proba_no_P = proba_no_P
         self.proba_no_QRS = proba_no_QRS
