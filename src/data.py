@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Tuple
 import torch
 import torch.utils
 import numpy as np
@@ -23,8 +23,8 @@ class Dataset(torch.utils.data.Dataset):
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
                  proba_elevation = 0.2, proba_interpolation = 0.2,
                  proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
-                 proba_TV = 0.05, proba_AF = 0.05, proba_tachy = 0.05, 
-                 tachy_maxlen = 10, add_baseline_wander = True, 
+                 proba_TV = 0.05, proba_AF = 0.05, proba_flatline = 0.05,
+                 proba_tachy = 0.05, tachy_maxlen = 10, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  smoothing_window = 51, labels_as_masks = True, 
                  QRS_ampl_low_thres = 0.1, QRS_ampl_high_thres = 1.15,
@@ -84,13 +84,22 @@ class Dataset(torch.utils.data.Dataset):
         self.proba_AF = proba_AF
         self.proba_same_morph = proba_same_morph
         self.proba_elevation = proba_elevation
+        self.proba_flatline = proba_flatline
         self.proba_interpolation = proba_interpolation
         self.proba_mixup = proba_mixup
         self.proba_tachy = proba_tachy
-        
+
+
     def __len__(self):
         '''Denotes the number of elements in the dataset'''
         return self.length
+
+
+    def smooth(self, x: np.ndarray, window: int, conv_mode: str = 'same'):
+        window = np.hamming(window)/(window//2)
+        x = np.convolve(x, window, mode=conv_mode)
+        return x
+
 
     def __random_walk(self, scale: float = 0.01**(2*0.5), size: int = 2048, smoothing_window: int = None, conv_mode: str = 'same'):
         noise = np.cumsum(norm.rvs(scale=scale,size=size))
@@ -99,11 +108,13 @@ class Dataset(torch.utils.data.Dataset):
             noise = np.convolve(noise, window, mode=conv_mode)
         return noise
 
+
     def __trail_onset(self,segment,onset):
         onset = onset-segment[0]
         off = onset-segment[0]+segment[-1]
         segment = segment+np.linspace(onset,off,segment.size,dtype=segment.dtype)
         return segment
+
 
     def __apply_convolution(self, segment: np.ndarray, template: np.ndarray):
         # 1.2.3. Common operations
@@ -112,7 +123,8 @@ class Dataset(torch.utils.data.Dataset):
         segment = np.convolve(segment, mirrored_template)
         segment = utils.data.ball_scaling(segment,metric=self.scaling_metric)
         return segment
-        
+
+
     def __apply_elevation(self, segment: np.ndarray, type: str):
         # Retrieve amplitude
         right_amplitude = self.distribution_draw(type)*0.05
@@ -125,6 +137,7 @@ class Dataset(torch.utils.data.Dataset):
         segment += deviation.squeeze()
         return segment
 
+
     def distribution_draw(self, type: str):
         distribution = self.get_distribution(type)
         if type == 'QRS': 
@@ -136,6 +149,7 @@ class Dataset(torch.utils.data.Dataset):
             amplitude = distribution.rvs()
         return amplitude
 
+
     def get_distribution(self, type: str):
         if   type == 'P':   return self.Pdistribution
         elif type == 'PQ':  return self.PQdistribution
@@ -143,6 +157,7 @@ class Dataset(torch.utils.data.Dataset):
         elif type == 'ST':  return self.STdistribution
         elif type == 'T':   return self.Tdistribution
         elif type == 'TP':  return self.TPdistribution
+
 
     def get_keys(self, type: str):
         if   type == 'P':   return self.Pkeys
@@ -152,6 +167,7 @@ class Dataset(torch.utils.data.Dataset):
         elif type == 'T':   return self.Tkeys
         elif type == 'TP':  return self.TPkeys
 
+
     def get_waves(self, type: str):
         if   type == 'P':   return self.P
         elif type == 'PQ':  return self.PQ
@@ -160,6 +176,7 @@ class Dataset(torch.utils.data.Dataset):
         elif type == 'T':   return self.T
         elif type == 'TP':  return self.TP
 
+
     def __get_segment_post_function(self, type: str):
         if   type == 'P':   return self.__P_segment_post_operation
         elif type == 'PQ':  return self.__PQ_segment_post_operation
@@ -167,37 +184,33 @@ class Dataset(torch.utils.data.Dataset):
         elif type == 'ST':  return self.__ST_segment_post_operation
         elif type == 'T':   return self.__T_segment_post_operation
         elif type == 'TP':  return self.__TP_segment_post_operation
-
-    def __P_segment_post_operation(self, segment: np.ndarray, dict_globals: dict, template: np.ndarray):
-        if dict_globals['has_AF'] and (template is not None):
-            # Segment as smoothed random noise
-            segment = np.random.randn(2*segment.size)
-            segment = np.convolve(segment,np.hamming(segment.size)/(segment.size//2),mode='same')[segment.size//4:-segment.size//4]
-            # Convolve with template
-            segment = self.__apply_convolution(segment, template)
-            # discard extra information
-            on = np.random.choice([0,segment.size//4,segment.size//2])
-            segment = utils.signal.on_off_correction(segment[on:on+segment.size//2])
+    
+    def __P_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
         return segment
 
-    def __PQ_segment_post_operation(self, segment: np.ndarray, dict_globals: dict, template: np.ndarray):
+
+    def __PQ_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
         return segment
 
-    def __QRS_segment_post_operation(self, segment: np.ndarray, dict_globals: dict, template: np.ndarray):
+
+    def __QRS_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
         return segment
 
-    def __ST_segment_post_operation(self, segment: np.ndarray, dict_globals: dict, template: np.ndarray):
+
+    def __ST_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
         if   dict_globals['has_TV']:    segment = self.__random_walk(size=np.random.randint(2,32))
         elif dict_globals['has_tachy']: segment = self.__apply_tachy(segment)
         return segment
 
-    def __T_segment_post_operation(self, segment: np.ndarray, dict_globals: dict, template: np.ndarray):
+
+    def __T_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
         return segment
 
-    def __TP_segment_post_operation(self, segment: np.ndarray, dict_globals: dict, template: np.ndarray):
+
+    def __TP_segment_post_operation(self, segment: np.ndarray, dict_globals: dict):
         if dict_globals['has_tachy']:   segment = self.__apply_tachy(segment)
-        if dict_globals['has_AF']:      segment = self.__apply_convolution(segment, template)
         return segment
+
 
     def __apply_tachy(self, segment: np.ndarray):
         new_segment = segment[:np.random.randint(1,self.tachy_maxlen)]
@@ -219,14 +232,13 @@ class Dataset(torch.utils.data.Dataset):
         '''Generates one datapoint''' 
         # Generate globals
         dict_globals = self.generate_globals()
-        dict_IDs = self.generate_IDs(dict_globals)
-        templates = self.generate_templates(dict_globals, dict_IDs)
+        dict_globals['IDs'] = self.generate_IDs(dict_globals)
         
         ##### Output data structure
         beats = []
         beat_types = []
         for index in range(self.N): # Unrealistic upper limit
-            mark_break = self.generate_cycle_2(dict_globals, dict_IDs, templates, beats, beat_types, is_first_cycle=index==0)
+            mark_break = self.generate_cycle_2(dict_globals, beats, beat_types, is_first_cycle=index==0)
             if mark_break: break
 
         # 5. Registry-wise post-operations
@@ -243,27 +255,26 @@ class Dataset(torch.utils.data.Dataset):
         signal = interp1d(x,signal)(x_new)
         masks = interp1d(x,masks,kind='next')(x_new).astype(int)
 
-        # 5.3. Apply random onset for avoiding always starting with the same wave at the same location
+        # 5.3. Apply global amplitude modulation
+        signal = signal*dict_globals['global_amplitude']
+
+        # 5.4. Apply whole-signal modifications
+        if self.add_baseline_wander:     signal += self.__random_walk(size=signal.size,smoothing_window=self.smoothing_window)
+        if dict_globals['has_AF']:       signal = self.__apply_AF(signal)
+        if dict_globals['has_flatline']: signal, masks = self.__add_flatline(signal, masks, dict_globals)
+        
+        # 5.5. Apply random onset for avoiding always starting with the same wave at the same location
         on = dict_globals['index_onset']
         signal = signal[on:on+self.N]
         masks = masks[:,on:on+self.N]
 
-        # 5.4. Apply global amplitude modulation
-        signal = signal*dict_globals['global_amplitude']
+        # 6. Return
+        if self.return_beats: return signal[None,].astype('float32'), masks, beats, beat_types
+        else:                 return signal[None,].astype('float32'), masks
 
-        # 5.5. Add baseline wander
-        if self.add_baseline_wander:
-            signal += self.__random_walk(smoothing_window=self.smoothing_window)
-        
-        if self.return_beats:
-            return signal[None,].astype('float32'), masks, beats, masks
-        else:
-            return signal[None,].astype('float32'), masks
-      
-    def generate_cycle_2(self, dict_globals: dict, dict_IDs: dict, templates: dict = {}, 
-                               beats: list = [], beat_types: list = [], is_first_cycle: bool = False):
+
+    def generate_cycle_2(self, dict_globals: dict, beats: list = [], beat_types: list = [], is_first_cycle: bool = False):
         # Init output
-        mark_break = False
         total_size = np.sum([beat.size for beat in beats],dtype=int)
         qrs_amplitude = self.distribution_draw('QRS')
 
@@ -271,38 +282,39 @@ class Dataset(torch.utils.data.Dataset):
         for i,type in enumerate(['P','PQ','QRS','ST','T','TP']):
             # Crop part of the first cycle
             if is_first_cycle and (i < dict_globals['begining_wave']): continue
-                
-            # Get ID for this wave and template (if any)
-            id = dict_IDs[type][i]
-            template = templates.get(type,None)
 
-            # Retrieve segment information
-            segment = self.generate_segment_2(type, id)
+            segment = self.segment_compose_2(type, dict_globals, qrs_amplitude, dict_globals['IDs'][type][i])
 
-            # Segment post-operation
-            segment = self.segment_post_operation_2(type, segment, dict_globals, template)
+            if segment is not None:
+                # Add segment to output
+                beats.append(segment)
+                beat_types.append(type)
+                total_size += segment.size
 
-            # If empty, skip to next
-            if segment.size == 0: continue
+            if total_size >= dict_globals['N']: return True
+        return False
 
-            # Otherwise, apply post-operations
-            segment = self.general_post_operation_2(segment, type, dict_globals, template)
 
-            # Apply amplitude modulation
-            segment = self.apply_amplitude_2(segment, type, qrs_amplitude)
+    def segment_compose_2(self, type: str, dict_globals: dict, qrs_amplitude: float, id: int):
+        # Retrieve segment information
+        segment = self.get_segment_2(type, id)
 
-            # Add segment to output
-            beats.append(segment)
-            beat_types.append(type)
-            total_size += segment.size
+        # Segment post-operation
+        segment = self.segment_post_operation_2(type, segment, dict_globals)
 
-            if (math.floor(total_size*dict_globals['interp_length'])-dict_globals['index_onset']) >= self.N:
-                mark_break = True
-                break
+        # If empty, skip to next
+        if segment.size == 0: return
 
-        return mark_break
+        # Otherwise, apply post-operations
+        segment = self.general_post_operation_2(segment, type, dict_globals)
 
-    def generate_segment_2(self, type: str, id: int = None):
+        # Apply amplitude modulation
+        segment = self.apply_amplitude_2(segment, type, qrs_amplitude)
+        
+        return segment
+
+
+    def get_segment_2(self, type: str, id: int = None):
         # Get wave information
         waves = self.get_waves(type)
         keys = self.get_keys(type)
@@ -315,14 +327,23 @@ class Dataset(torch.utils.data.Dataset):
 
         return segment
 
-    def segment_post_operation_2(self, type: str, segment: np.ndarray, dict_globals: dict, template: np.ndarray):
+
+    def segment_post_operation_2(self, type: str, segment: np.ndarray, dict_globals: dict):
         post_segment_fnc = self.__get_segment_post_function(type)
         
         # Apply wave-specific modifications to the segment
-        segment = post_segment_fnc(segment, dict_globals, template)
+        segment = post_segment_fnc(segment, dict_globals)
 
         return segment
 
+
+    def __add_flatline(self, signal: np.ndarray, masks: np.ndarray, dict_globals: dict) -> Tuple[np.ndarray, np.ndarray]:
+        signal = np.pad(signal, (dict_globals['flatline_left'],dict_globals['flatline_right']), mode='edge')
+        if self.labels_as_masks:
+            masks = np.pad(masks, ((0,0),(dict_globals['flatline_left'],dict_globals['flatline_right'])), mode='constant', constant_values=0)
+        else:
+            masks = np.pad(masks, (dict_globals['flatline_left'],dict_globals['flatline_right']), mode='constant', constant_values=0)
+        return signal, masks
 
 
     def apply_amplitude_2(self, segment: np.ndarray, type: str, qrs_amplitude: float):
@@ -344,11 +365,12 @@ class Dataset(torch.utils.data.Dataset):
         
         return segment
 
-    def general_post_operation_2(self, segment: np.ndarray, type: str, dict_globals: dict, template: np.ndarray):
+
+    def general_post_operation_2(self, segment: np.ndarray, type: str, dict_globals: dict):
         # Apply mixup (if applicable)
         if (np.random.rand() < self.proba_mixup) and (type in ['P','QRS','T']):
-            segment2 = self.generate_segment_2(type)
-            segment2 = self.segment_post_operation_2(type, segment2, dict_globals, None)
+            segment2 = self.get_segment_2(type)
+            segment2 = self.segment_post_operation_2(type, segment2, dict_globals)
             segment = self.apply_mixup(segment, segment2)
 
         # Apply interpolation (if applicable, if segment is not empty)
@@ -362,6 +384,7 @@ class Dataset(torch.utils.data.Dataset):
         
         return segment
 
+
     def trail_onsets(self, beats: list):
         onset = 0.0
         for i,segment in enumerate(beats):
@@ -369,6 +392,7 @@ class Dataset(torch.utils.data.Dataset):
             beats[i] = segment
             onset = segment[-1]
         return beats
+
 
     def generate_mask_2(self, beats: list, beat_types: list, mode_bool=True):
         beat_sizes = [beat.size for i,beat in enumerate(beats)]
@@ -415,6 +439,7 @@ class Dataset(torch.utils.data.Dataset):
             elif type == 'T':   mask = np.full((size,),3, dtype='int8')
         return mask
 
+
     def apply_mixup(self, segment1: np.ndarray, segment2: np.ndarray):
         if segment1.size != segment2.size:
             segment2 = interp1d(np.linspace(0,1,segment2.size),segment2)(np.linspace(0,1,segment1.size))
@@ -423,6 +448,7 @@ class Dataset(torch.utils.data.Dataset):
 
         return mixup_segment
 
+
     def interpolate_segment(self, y: np.ndarray, new_size: int):
         if y.size != new_size:
             x_old = np.linspace(0,1,y.size)
@@ -430,25 +456,32 @@ class Dataset(torch.utils.data.Dataset):
             y = interp1d(x_old,y)(x_new)
         return y
 
+
     def generate_globals(self):
         dict_globals = {}
-
-        # Set hyperparameters
-        dict_globals['index_onset'] = np.random.randint(50)
-        dict_globals['begining_wave'] = np.random.randint(6)
-        dict_globals['global_amplitude'] = 1.+(np.random.randn()*self.amplitude_std)
-        dict_globals['interp_length'] = max([1.+(np.random.randn()*self.interp_std),0.5])
 
         # Probabilities of waves
         dict_globals['has_same_morph'] = np.random.rand() < self.proba_same_morph
         dict_globals['does_not_have_P'] = np.random.rand() < self.proba_no_P
         dict_globals['does_not_have_PQ'] = np.random.rand() < self.proba_no_PQ
         dict_globals['does_not_have_ST'] = np.random.rand() < self.proba_no_ST
+        dict_globals['has_flatline'] = np.random.rand() < self.proba_flatline
         dict_globals['has_TV'] = np.random.rand() < self.proba_TV
         dict_globals['has_AF'] = np.random.rand() < self.proba_AF
         dict_globals['has_tachy'] = np.random.rand() < self.proba_tachy
+        
+        # Set hyperparameters
+        dict_globals['index_onset'] = np.random.randint(50)
+        dict_globals['begining_wave'] = np.random.randint(6)
+        dict_globals['global_amplitude'] = 1.+(np.random.randn()*self.amplitude_std)
+        dict_globals['interp_length'] = max([1.+(np.random.randn()*self.interp_std),0.5])
+        if dict_globals['has_flatline']: dict_globals['flatline_length'] = np.random.randint(self.N//np.random.randint(2,5))
+        if dict_globals['has_flatline']: dict_globals['flatline_left'] = np.random.randint(dict_globals['flatline_length'])
+        if dict_globals['has_flatline']: dict_globals['flatline_right'] = dict_globals['flatline_length']-dict_globals['flatline_left']
+        dict_globals['N'] = math.floor((self.N+dict_globals['index_onset']-dict_globals.get('flatline_length',0))/dict_globals['interp_length'])
 
         return dict_globals
+
 
     def generate_IDs(self, dict_globals: dict):
         dict_IDs = {}
@@ -485,15 +518,40 @@ class Dataset(torch.utils.data.Dataset):
 
         return dict_IDs
 
-    def generate_templates(self, dict_globals: dict, dict_IDs: dict):
-        templates = {}
 
-        if dict_globals['has_AF']:
-            pAF = self.generate_segment_2('P')
-            pAF = self.interpolate_segment(pAF, pAF.size//2)
-            pdist = 4*self.Pdistribution.rvs()
-            templates['P'] = pdist*pAF
-            templates['TP'] = pdist*pAF
+    def __apply_AF(self, signal: np.ndarray):
+        # select random P wave as template
+        pAF = self.get_segment_2('P')
+        N = signal.size
 
-        return templates
+        # Mirror on negative
+        sign = np.random.choice([-1,1])
+        template = [sign*pAF[:-1],-sign*pAF[:-1]]
+
+        # Repeat to reach N samples
+        template = np.concatenate(template*math.ceil(N/sum([template[0].size,template[1].size])))
+
+        # Crop to size N 
+        if template.size != N:
+            onset = np.random.randint(template.size-N)
+            template = template[onset:onset+N]
+
+        # Interpolate on x axis to make less "stiff"
+        x = np.random.rand(N-1)*(np.random.randint(5,size=N-1)**np.random.randint(5,size=N-1))
+        x = np.cumsum(self.smooth(np.hstack(([0.],x)),N//16))
+        x = x/np.max(x)
+        template = interp1d(np.linspace(0,1,N),template)(x)
+
+        # Apply noise 
+        template = template*np.random.randn(template.size)
+        template = self.smooth(template,pAF.size//2)
+
+        # Sample amplitude > 0.3 (to make any noticeable difference on the signal)
+        amplitude = self.Pdistribution.rvs()
+        while (amplitude < 0.3) and (amplitude > 0.6): amplitude = self.Pdistribution.rvs()
+
+        # Apply AF on signal
+        signal = signal+template*amplitude
+        
+        return signal
 
