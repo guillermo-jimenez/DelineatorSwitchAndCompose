@@ -445,39 +445,39 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def generate_IDs(self, dict_globals: dict):
-        dict_IDs = {}
+        IDs = {}
 
         ##### Identifiers
         if dict_globals['has_same_morph']:
-            dict_IDs['P'] = np.array([np.random.randint(len(self.P))]*self.N)
-            dict_IDs['PQ'] = np.array([np.random.randint(len(self.PQ))]*self.N)
-            dict_IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*self.N)
-            dict_IDs['ST'] = np.array([np.random.randint(len(self.ST))]*self.N)
-            dict_IDs['T'] = np.array([np.random.randint(len(self.T))]*self.N)
-            dict_IDs['TP'] = np.array([np.random.randint(len(self.TP))]*self.N)
+            IDs['P'] = np.array([np.random.randint(len(self.P))]*self.N)
+            IDs['PQ'] = np.array([np.random.randint(len(self.PQ))]*self.N)
+            IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*self.N)
+            IDs['ST'] = np.array([np.random.randint(len(self.ST))]*self.N)
+            IDs['T'] = np.array([np.random.randint(len(self.T))]*self.N)
+            IDs['TP'] = np.array([np.random.randint(len(self.TP))]*self.N)
         else:
-            dict_IDs['P'] = np.random.randint(len(self.P),size=self.N)
-            dict_IDs['PQ'] = np.random.randint(len(self.PQ),size=self.N)
-            dict_IDs['QRS'] = np.random.randint(len(self.QRS),size=self.N)
-            dict_IDs['ST'] = np.random.randint(len(self.ST),size=self.N)
-            dict_IDs['T'] = np.random.randint(len(self.T),size=self.N)
-            dict_IDs['TP'] = np.random.randint(len(self.TP),size=self.N)
+            IDs['P'] = np.random.randint(len(self.P),size=self.N)
+            IDs['PQ'] = np.random.randint(len(self.PQ),size=self.N)
+            IDs['QRS'] = np.random.randint(len(self.QRS),size=self.N)
+            IDs['ST'] = np.random.randint(len(self.ST),size=self.N)
+            IDs['T'] = np.random.randint(len(self.T),size=self.N)
+            IDs['TP'] = np.random.randint(len(self.TP),size=self.N)
 
         if dict_globals['has_AF']:
-            dict_IDs['P'] = np.repeat(np.random.randint(len(self.P)),self.N)
+            IDs['P'] = np.repeat(np.random.randint(len(self.P)),self.N)
 
         # In case QRS is not expressed
         filt_QRS = np.random.rand(self.N) > (1-self.proba_no_QRS)
 
         # Exceptions according to different conditions
-        dict_IDs['P'][(np.random.rand(self.N) < self.proba_no_P) | dict_globals['does_not_have_P'] | dict_globals['has_TV']] = -1
-        dict_IDs['PQ'][filt_QRS | (np.random.rand(self.N) < self.proba_no_PQ) | dict_globals['does_not_have_PQ'] | dict_globals['has_TV']] = -1
-        dict_IDs['QRS'][filt_QRS] = -1
-        dict_IDs['ST'][filt_QRS | (np.random.rand(self.N) < self.proba_no_ST) | dict_globals['does_not_have_ST']] = -1
-        dict_IDs['T'][filt_QRS] = -1
-        dict_IDs['TP'][np.full((self.N),dict_globals['has_TV'],dtype=bool)] = -1
+        IDs['P'][(np.random.rand(self.N) < self.proba_no_P) | dict_globals['does_not_have_P'] | dict_globals['has_TV']] = -1
+        IDs['PQ'][filt_QRS | (np.random.rand(self.N) < self.proba_no_PQ) | dict_globals['does_not_have_PQ'] | dict_globals['has_TV']] = -1
+        IDs['QRS'][filt_QRS] = -1
+        IDs['ST'][filt_QRS | (np.random.rand(self.N) < self.proba_no_ST) | dict_globals['does_not_have_ST']] = -1
+        IDs['T'][filt_QRS] = -1
+        IDs['TP'][np.full((self.N),dict_globals['has_TV'],dtype=bool)] = -1
 
-        return dict_IDs
+        return IDs
 
 
     def apply_AF(self, signal: np.ndarray):
