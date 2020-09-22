@@ -116,22 +116,13 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def __apply_convolution(self, segment: np.ndarray, template: np.ndarray):
-        # 1.2.3. Common operations
-        sign = np.random.choice([0,1])
-        mirrored_template = np.concatenate([((-1)**(sign))*template,((-1)**(sign+1))*template])
-        segment = np.convolve(segment, mirrored_template)
-        segment = utils.data.ball_scaling(segment,metric=self.scaling_metric)
-        return segment
-
-
-    def __apply_elevation(self, segment: np.ndarray, type: str):
+    def __apply_elevation(self, segment: np.ndarray, type: str, amplitude_modifier: float = 0.05):
         # Retrieve amplitude
-        right_amplitude = self.distribution_draw(type)*0.05
+        amplitude = self.distribution_draw(type)*amplitude_modifier
         # Randomly choose elevation/depression
         sign = np.random.choice([-1,1])
         # Compute deviation (cuadratic at the moment)
-        linspace = np.linspace(0,np.sqrt(np.abs(right_amplitude)),segment.size)**2
+        linspace = np.linspace(0,np.sqrt(np.abs(amplitude)),segment.size)**2
         deviation = sign*linspace
         # Apply to segment
         segment += deviation.squeeze()
@@ -221,13 +212,6 @@ class Dataset(torch.utils.data.Dataset):
         return new_segment
 
 
-
-
-
-
-
-
-
     def __getitem__(self, i):
         '''Generates one datapoint''' 
         # Generate globals
@@ -238,7 +222,7 @@ class Dataset(torch.utils.data.Dataset):
         beats = []
         beat_types = []
         for index in range(self.N): # Unrealistic upper limit
-            mark_break = self.generate_cycle_2(dict_globals, beats, beat_types, is_first_cycle=index==0)
+            mark_break = self.generate_cycle(dict_globals, beats, beat_types, is_first_cycle=index==0)
             if mark_break: break
 
         # 5. Registry-wise post-operations
@@ -247,7 +231,7 @@ class Dataset(torch.utils.data.Dataset):
 
         # 5.1. Concatenate signal and mask
         signal = np.concatenate(beats)
-        masks = self.generate_mask_2(beats, beat_types, mode_bool=self.labels_as_masks) # Still to be done right
+        masks = self.generate_mask(beats, beat_types, mode_bool=self.labels_as_masks) # Still to be done right
         
         # 5.2. Interpolate signal & mask
         x = np.linspace(0,1,signal.size)
@@ -273,7 +257,7 @@ class Dataset(torch.utils.data.Dataset):
         else:                 return signal[None,].astype('float32'), masks
 
 
-    def generate_cycle_2(self, dict_globals: dict, beats: list = [], beat_types: list = [], is_first_cycle: bool = False):
+    def generate_cycle(self, dict_globals: dict, beats: list = [], beat_types: list = [], is_first_cycle: bool = False):
         # Init output
         total_size = np.sum([beat.size for beat in beats],dtype=int)
         qrs_amplitude = self.distribution_draw('QRS')
@@ -283,7 +267,7 @@ class Dataset(torch.utils.data.Dataset):
             # Crop part of the first cycle
             if is_first_cycle and (i < dict_globals['begining_wave']): continue
 
-            segment = self.segment_compose_2(type, dict_globals, qrs_amplitude, dict_globals['IDs'][type][i])
+            segment = self.segment_compose(type, dict_globals, qrs_amplitude, dict_globals['IDs'][type][i])
 
             if segment is not None:
                 # Add segment to output
@@ -295,26 +279,26 @@ class Dataset(torch.utils.data.Dataset):
         return False
 
 
-    def segment_compose_2(self, type: str, dict_globals: dict, qrs_amplitude: float, id: int):
+    def segment_compose(self, type: str, dict_globals: dict, qrs_amplitude: float, id: int):
         # Retrieve segment information
-        segment = self.get_segment_2(type, id)
+        segment = self.get_segment(type, id)
 
         # Segment post-operation
-        segment = self.segment_post_operation_2(type, segment, dict_globals)
+        segment = self.segment_post_operation(type, segment, dict_globals)
 
         # If empty, skip to next
         if segment.size == 0: return
 
         # Otherwise, apply post-operations
-        segment = self.general_post_operation_2(segment, type, dict_globals)
+        segment = self.general_post_operation(segment, type, dict_globals)
 
         # Apply amplitude modulation
-        segment = self.apply_amplitude_2(segment, type, qrs_amplitude)
+        segment = self.apply_amplitude(segment, type, qrs_amplitude)
         
         return segment
 
 
-    def get_segment_2(self, type: str, id: int = None):
+    def get_segment(self, type: str, id: int = None):
         # Get wave information
         waves = self.get_waves(type)
         keys = self.get_keys(type)
@@ -328,7 +312,7 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def segment_post_operation_2(self, type: str, segment: np.ndarray, dict_globals: dict):
+    def segment_post_operation(self, type: str, segment: np.ndarray, dict_globals: dict):
         post_segment_fnc = self.__get_segment_post_function(type)
         
         # Apply wave-specific modifications to the segment
@@ -346,7 +330,7 @@ class Dataset(torch.utils.data.Dataset):
         return signal, masks
 
 
-    def apply_amplitude_2(self, segment: np.ndarray, type: str, qrs_amplitude: float):
+    def apply_amplitude(self, segment: np.ndarray, type: str, qrs_amplitude: float):
         if type == 'QRS':
             amplitude = qrs_amplitude
         else:
@@ -366,11 +350,11 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def general_post_operation_2(self, segment: np.ndarray, type: str, dict_globals: dict):
+    def general_post_operation(self, segment: np.ndarray, type: str, dict_globals: dict):
         # Apply mixup (if applicable)
         if (np.random.rand() < self.proba_mixup) and (type in ['P','QRS','T']):
-            segment2 = self.get_segment_2(type)
-            segment2 = self.segment_post_operation_2(type, segment2, dict_globals)
+            segment2 = self.get_segment(type)
+            segment2 = self.segment_post_operation(type, segment2, dict_globals)
             segment = self.apply_mixup(segment, segment2)
 
         # Apply interpolation (if applicable, if segment is not empty)
@@ -394,7 +378,7 @@ class Dataset(torch.utils.data.Dataset):
         return beats
 
 
-    def generate_mask_2(self, beats: list, beat_types: list, mode_bool=True):
+    def generate_mask(self, beats: list, beat_types: list, mode_bool=True):
         beat_sizes = [beat.size for i,beat in enumerate(beats)]
         # Compute cumulative sum, append zero to start
         cumsum = np.hstack(([0],np.cumsum(beat_sizes)))
@@ -412,31 +396,6 @@ class Dataset(torch.utils.data.Dataset):
                 if   beat_type == 'P':   mask[cumsum[i]:cumsum[i+1]] = 1
                 elif beat_type == 'QRS': mask[cumsum[i]:cumsum[i+1]] = 2
                 elif beat_type == 'T':   mask[cumsum[i]:cumsum[i+1]] = 3
-        return mask
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def generate_mask(self, type: str, size: int, mode: str = 'bool'):
-        if mode.lower() in ['bool', 'boolean']:
-            mask = np.zeros((3, size), dtype=bool)
-            if   type == 'P':   mask[0,:] = True
-            elif type == 'QRS': mask[1,:] = True
-            elif type == 'T':   mask[2,:] = True
-        else:
-            if   type == 'P':   mask = np.full((size,),1, dtype='int8')
-            elif type == 'QRS': mask = np.full((size,),2, dtype='int8')
-            elif type == 'T':   mask = np.full((size,),3, dtype='int8')
         return mask
 
 
@@ -521,7 +480,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def __apply_AF(self, signal: np.ndarray):
         # select random P wave as template
-        pAF = self.get_segment_2('P')
+        pAF = self.get_segment('P')
         N = signal.size
 
         # Mirror on negative
