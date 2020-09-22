@@ -6,7 +6,7 @@
     "resume": false,
     "input_shape": 1024,
     "iterator": "tqdm",
-    "epochs": 200,
+    "epochs": 100,
     "sampler": {
         "shuffle": true
     },
@@ -26,10 +26,16 @@
         "mixup_beta": 1.0,
         "proba_TV": 0.05,
         "proba_AF": 0.05,
+        "proba_tachy": 0.05,
+        "tachy_maxlen": 10,
         "add_baseline_wander": true,
         "amplitude_std": 0.25,
         "interp_std": 0.25,
-        "window": 51,
+        "smoothing_window": 51,
+        "QRS_ampl_low_thres": 0.1,
+        "QRS_ampl_high_thres": 1.15,
+        "scaling_metric": "utils.signal.abs_max",
+        "return_beats": false,
         "labels_as_masks": true
     },
     "loader": {
