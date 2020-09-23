@@ -23,8 +23,9 @@ class Dataset(torch.utils.data.Dataset):
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
                  proba_elevation = 0.2, proba_interpolation = 0.2,
                  proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
-                 proba_TV = 0.05, proba_AF = 0.05, proba_flatline = 0.05,
-                 proba_tachy = 0.05, tachy_maxlen = 10, add_baseline_wander = True, 
+                 proba_TV = 0.05, proba_AF = 0.05, proba_ectopics = 0.25, 
+                 proba_flatline = 0.05, proba_tachy = 0.05, 
+                 tachy_maxlen = 10, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  smoothing_window = 51, labels_as_masks = True, 
                  QRS_ampl_low_thres = 0.1, QRS_ampl_high_thres = 1.15,
@@ -73,7 +74,7 @@ class Dataset(torch.utils.data.Dataset):
         self.scaling_metric = scaling_metric
         self.QRS_ampl_low_thres = QRS_ampl_low_thres
         self.QRS_ampl_high_thres = QRS_ampl_high_thres
-        if isinstance(self.scaling_metric,str):
+        if isinstance(self.scaling_metric,str): # Map to function
             self.scaling_metric = eval(self.scaling_metric)
         # Probabilities
         self.proba_no_P = proba_no_P
@@ -88,6 +89,7 @@ class Dataset(torch.utils.data.Dataset):
         self.proba_interpolation = proba_interpolation
         self.proba_mixup = proba_mixup
         self.proba_tachy = proba_tachy
+        self.proba_ectopics = proba_ectopics
 
 
     def __len__(self):
@@ -116,12 +118,13 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def apply_elevation(self, segment: np.ndarray, type: str, amplitude_modifier: float = 0.05, sign: [-1,1] = None):
+    def apply_elevation(self, segment: np.ndarray, max_amplitude: float = 0.05, sign: [-1,1] = None):
+        # Randomize amplitude
+        amplitude = np.random.rand()*max_amplitude
+        # Copy segment
         segment = np.copy(segment)
-        # Retrieve amplitude
-        amplitude = self.distribution_draw(type)*amplitude_modifier
         # Randomly choose elevation/depression
-        if (sign not in [-1,1]) and (sign is not None):
+        if (sign not in [-1,1]) or (sign is None):
             sign = np.random.choice([-1,1])
         # Compute deviation (cuadratic at the moment)
         linspace = np.linspace(0,np.sqrt(np.abs(amplitude)),segment.size)**2
@@ -178,29 +181,30 @@ class Dataset(torch.utils.data.Dataset):
         elif type == 'T':   return self.T_post_operation
         elif type == 'TP':  return self.TP_post_operation
     
-    def P_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def P_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         return segment
 
 
-    def PQ_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def PQ_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         return segment
 
 
-    def QRS_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def QRS_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
+        # if   dict_globals['has_ectopics']: self.interpolate_segment(segment, np.random.randint(30,120))
         return segment
 
 
-    def ST_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def ST_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         if   dict_globals['has_TV']:    segment = self.random_walk(size=np.random.randint(2,32))
         elif dict_globals['has_tachy']: segment = self.apply_tachy(segment)
         return segment
 
 
-    def T_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def T_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         return segment
 
 
-    def TP_post_operation(self, segment: np.ndarray, dict_globals: dict):
+    def TP_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         if dict_globals['has_tachy']:   segment = self.apply_tachy(segment)
         return segment
 
@@ -214,17 +218,27 @@ class Dataset(torch.utils.data.Dataset):
         return new_segment
 
 
+    # def apply_ectopic(self, segment: np.ndarray):
+    #     crossings = utils.signal.zero_crossings(segment)[0]
+    #     sign_t = -np.sign(utils.signal.signed_maxima(qrs[crossings[-2]:crossings[-1]]))
+    #     segment = 
+    #     ampl = Tdistribution.rvs()*2
+    #     print(ampl)
+    #     t_new = t*((-1)**(not np.allclose(utils.signal.signed_maxima(t),sign_t)))*ampl
+
+
     def __getitem__(self, i):
         '''Generates one datapoint''' 
         # Generate globals
         dict_globals = self.generate_globals()
         dict_globals['IDs'] = self.generate_IDs(dict_globals)
+        dict_globals['amplitudes'] = self.generate_amplitudes(dict_globals)
         
         ##### Output data structure
         beats = []
         beat_types = []
         for index in range(self.N): # Unrealistic upper limit
-            mark_break = self.generate_cycle(dict_globals, beats, beat_types, is_first_cycle=index==0)
+            mark_break = self.generate_cycle(index, dict_globals, beats, beat_types)
             if mark_break: break
 
         # 5. Registry-wise post-operations
@@ -236,10 +250,9 @@ class Dataset(torch.utils.data.Dataset):
         masks = self.generate_mask(beats, beat_types, mode_bool=self.labels_as_masks) # Still to be done right
         
         # 5.2. Interpolate signal & mask
-        x = np.linspace(0,1,signal.size)
-        x_new = np.linspace(0,1,math.ceil(signal.size*dict_globals['interp_length']))
-        signal = interp1d(x,signal)(x_new)
-        masks = interp1d(x,masks,kind='next')(x_new).astype(int)
+        int_len = math.ceil(signal.size*dict_globals['interp_length'])
+        signal = self.interpolate_segment(signal,int_len)
+        masks = self.interpolate_segment(masks,int_len,axis=-1,kind='next').astype(masks.dtype)
 
         # 5.3. Apply global amplitude modulation
         signal = signal*dict_globals['global_amplitude']
@@ -259,17 +272,17 @@ class Dataset(torch.utils.data.Dataset):
         else:                 return signal[None,].astype('float32'), masks
 
 
-    def generate_cycle(self, dict_globals: dict, beats: list = [], beat_types: list = [], is_first_cycle: bool = False):
+    def generate_cycle(self, index: int, dict_globals: dict, beats: list = [], beat_types: list = []):
         # Init output
         total_size = np.sum([beat.size for beat in beats],dtype=int)
-        qrs_amplitude = self.distribution_draw('QRS')
+        qrs_amplitude = dict_globals['amplitudes']['QRS'][index]
 
         ### Add all waves ###
         for i,type in enumerate(['P','PQ','QRS','ST','T','TP']):
             # Crop part of the first cycle
-            if is_first_cycle and (i < dict_globals['begining_wave']): continue
+            if (index == 0) and (i < dict_globals['begining_wave']): continue
 
-            segment = self.segment_compose(type, dict_globals, qrs_amplitude, dict_globals['IDs'][type][i])
+            segment = self.segment_compose(index, type, dict_globals, qrs_amplitude)
 
             if segment is not None:
                 # Add segment to output
@@ -281,21 +294,21 @@ class Dataset(torch.utils.data.Dataset):
         return False
 
 
-    def segment_compose(self, type: str, dict_globals: dict, qrs_amplitude: float, id: int):
+    def segment_compose(self, index: int, type: str, dict_globals: dict, qrs_amplitude: float):
         # Retrieve segment information
-        segment = self.get_segment(type, id)
+        segment = self.get_segment(type, dict_globals['IDs'][type][index])
 
         # Segment post-operation
-        segment = self.segment_post_operation(type, segment, dict_globals)
+        segment = self.segment_post_operation(type, segment, dict_globals, index)
 
         # If empty, skip to next
         if segment.size == 0: return
 
         # Otherwise, apply post-operations
-        segment = self.general_post_operation(segment, type, dict_globals)
+        segment = self.general_post_operation(segment, type, dict_globals, index)
 
         # Apply amplitude modulation
-        segment = self.apply_amplitude(segment, type, qrs_amplitude)
+        segment = self.apply_amplitude(index, segment, type, qrs_amplitude, dict_globals)
         
         return segment
 
@@ -314,11 +327,11 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def segment_post_operation(self, type: str, segment: np.ndarray, dict_globals: dict):
+    def segment_post_operation(self, type: str, segment: np.ndarray, dict_globals: dict, index: int):
         post_segment_fnc = self.get_segment_post_function(type)
         
         # Apply wave-specific modifications to the segment
-        segment = post_segment_fnc(segment, dict_globals)
+        segment = post_segment_fnc(segment, dict_globals, index)
 
         return segment
 
@@ -332,12 +345,12 @@ class Dataset(torch.utils.data.Dataset):
         return signal, masks
 
 
-    def apply_amplitude(self, segment: np.ndarray, type: str, qrs_amplitude: float):
+    def apply_amplitude(self, index: int, segment: np.ndarray, type: str, qrs_amplitude: float, dict_globals: dict):
         if type == 'QRS':
             amplitude = qrs_amplitude
         else:
             # Draw from distribution
-            amplitude = qrs_amplitude*self.distribution_draw(type) # Apply amplitude on segment
+            amplitude = qrs_amplitude*dict_globals['amplitudes'][type][index] # Apply amplitude on segment
 
             # Hotfix: conditional to range of QRS amplitude
             if   qrs_amplitude < 0.2: amplitude *= 2.5
@@ -352,11 +365,11 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def general_post_operation(self, segment: np.ndarray, type: str, dict_globals: dict):
+    def general_post_operation(self, segment: np.ndarray, type: str, dict_globals: dict, index: int):
         # Apply mixup (if applicable)
         if (np.random.rand() < self.proba_mixup) and (type in ['P','QRS','T']):
             segment2 = self.get_segment(type)
-            segment2 = self.segment_post_operation(type, segment2, dict_globals)
+            segment2 = self.segment_post_operation(type, segment2, dict_globals, index)
             segment = self.apply_mixup(segment, segment2)
 
         # Apply interpolation (if applicable, if segment is not empty)
@@ -366,7 +379,7 @@ class Dataset(torch.utils.data.Dataset):
 
         # Apply right extrema elevation/depression
         if np.random.rand() < self.proba_elevation:
-            segment = self.apply_elevation(segment, type)
+            segment = self.apply_elevation(segment)
         
         return segment
 
@@ -403,18 +416,22 @@ class Dataset(torch.utils.data.Dataset):
 
     def apply_mixup(self, segment1: np.ndarray, segment2: np.ndarray):
         if segment1.size != segment2.size:
-            segment2 = interp1d(np.linspace(0,1,segment2.size),segment2)(np.linspace(0,1,segment1.size))
+            segment2 = self.interpolate_segment(segment2, segment1.size)
         (mixup_segment,_) = utils.data.augmentation.mixup(segment1,segment2,self.mixup_alpha,self.mixup_beta)
         mixup_segment = utils.data.ball_scaling(mixup_segment,metric=self.scaling_metric)
 
         return mixup_segment
 
 
-    def interpolate_segment(self, y: np.ndarray, new_size: int):
+    def interpolate_segment(self, y: np.ndarray, new_size: int, **kwargs):
         if y.size != new_size:
-            x_old = np.linspace(0,1,y.size)
+            if 'axis' in kwargs:
+                size = y.shape[kwargs['axis']]
+            else:
+                size = y.size
+            x_old = np.linspace(0,1,size)
             x_new = np.linspace(0,1,new_size)
-            y = interp1d(x_old,y)(x_new)
+            y = interp1d(x_old,y, **kwargs)(x_new)
         return y
 
 
@@ -436,10 +453,10 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals['begining_wave'] = np.random.randint(6)
         dict_globals['global_amplitude'] = 1.+(np.random.randn()*self.amplitude_std)
         dict_globals['interp_length'] = max([1.+(np.random.randn()*self.interp_std),0.5])
-        if dict_globals['has_flatline']: dict_globals['flatline_length'] = np.random.randint(self.N//np.random.randint(2,5))
+        if dict_globals['has_flatline']: dict_globals['flatline_length'] = np.random.randint(1,self.N//np.random.randint(2,5))
         if dict_globals['has_flatline']: dict_globals['flatline_left'] = np.random.randint(dict_globals['flatline_length'])
         if dict_globals['has_flatline']: dict_globals['flatline_right'] = dict_globals['flatline_length']-dict_globals['flatline_left']
-        dict_globals['N'] = math.floor((self.N+dict_globals['index_onset']-dict_globals.get('flatline_length',0))/dict_globals['interp_length'])
+        dict_globals['N'] = math.ceil((self.N+dict_globals['index_onset']-dict_globals.get('flatline_length',0))/dict_globals['interp_length'])
 
         return dict_globals
 
@@ -447,37 +464,66 @@ class Dataset(torch.utils.data.Dataset):
     def generate_IDs(self, dict_globals: dict):
         IDs = {}
 
+        # Number of generated cycles (unrealistic upper limit)
+        N = self.N//32
+
         ##### Identifiers
         if dict_globals['has_same_morph']:
-            IDs['P'] = np.array([np.random.randint(len(self.P))]*self.N)
-            IDs['PQ'] = np.array([np.random.randint(len(self.PQ))]*self.N)
-            IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*self.N)
-            IDs['ST'] = np.array([np.random.randint(len(self.ST))]*self.N)
-            IDs['T'] = np.array([np.random.randint(len(self.T))]*self.N)
-            IDs['TP'] = np.array([np.random.randint(len(self.TP))]*self.N)
+            IDs[  'P'] = np.array([np.random.randint(len(  self.P))]*N)
+            IDs[ 'PQ'] = np.array([np.random.randint(len( self.PQ))]*N)
+            IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*N)
+            IDs[ 'ST'] = np.array([np.random.randint(len( self.ST))]*N)
+            IDs[  'T'] = np.array([np.random.randint(len(  self.T))]*N)
+            IDs[ 'TP'] = np.array([np.random.randint(len( self.TP))]*N)
         else:
-            IDs['P'] = np.random.randint(len(self.P),size=self.N)
-            IDs['PQ'] = np.random.randint(len(self.PQ),size=self.N)
-            IDs['QRS'] = np.random.randint(len(self.QRS),size=self.N)
-            IDs['ST'] = np.random.randint(len(self.ST),size=self.N)
-            IDs['T'] = np.random.randint(len(self.T),size=self.N)
-            IDs['TP'] = np.random.randint(len(self.TP),size=self.N)
+            IDs[  'P'] = np.random.randint(len(  self.P), size=N)
+            IDs[ 'PQ'] = np.random.randint(len( self.PQ), size=N)
+            IDs['QRS'] = np.random.randint(len(self.QRS), size=N)
+            IDs[ 'ST'] = np.random.randint(len( self.ST), size=N)
+            IDs[  'T'] = np.random.randint(len(  self.T), size=N)
+            IDs[ 'TP'] = np.random.randint(len( self.TP), size=N)
 
         if dict_globals['has_AF']:
-            IDs['P'] = np.repeat(np.random.randint(len(self.P)),self.N)
+            IDs['P'] = np.repeat(np.random.randint(len(self.P)),N)
 
         # In case QRS is not expressed
-        filt_QRS = np.random.rand(self.N) > (1-self.proba_no_QRS)
+        filt_QRS = np.random.rand(N) > (1-self.proba_no_QRS)
 
         # Exceptions according to different conditions
-        IDs['P'][(np.random.rand(self.N) < self.proba_no_P) | dict_globals['does_not_have_P'] | dict_globals['has_TV']] = -1
-        IDs['PQ'][filt_QRS | (np.random.rand(self.N) < self.proba_no_PQ) | dict_globals['does_not_have_PQ'] | dict_globals['has_TV']] = -1
+        IDs[  'P'][           (np.random.rand(N) < self.proba_no_P)  | dict_globals['does_not_have_P']  | dict_globals['has_TV']] = -1
+        IDs[ 'PQ'][filt_QRS | (np.random.rand(N) < self.proba_no_PQ) | dict_globals['does_not_have_PQ'] | dict_globals['has_TV']] = -1
         IDs['QRS'][filt_QRS] = -1
-        IDs['ST'][filt_QRS | (np.random.rand(self.N) < self.proba_no_ST) | dict_globals['does_not_have_ST']] = -1
-        IDs['T'][filt_QRS] = -1
-        IDs['TP'][np.full((self.N),dict_globals['has_TV'],dtype=bool)] = -1
+        IDs[ 'ST'][filt_QRS | (np.random.rand(N) < self.proba_no_ST) | dict_globals['does_not_have_ST']] = -1
+        IDs[  'T'][filt_QRS] = -1
+        IDs[ 'TP'][np.full((N),dict_globals['has_TV'],dtype=bool)] = -1
+
+        # Generate ectopics
+        IDs['ectopics'] = np.random.rand(N) < self.proba_ectopics
+        IDs['P'][IDs['ectopics']] = -1
 
         return IDs
+
+
+    def generate_amplitudes(self, dict_globals: dict):
+        # Number of generated cycles (unrealistic upper limit)
+        N = self.N//32
+
+        amplitudes = {
+            'P'   : self.Pdistribution.rvs(N),
+            'PQ'  : self.PQdistribution.rvs(N),
+            'QRS' : self.QRSdistribution.rvs(N),
+            'ST'  : self.STdistribution.rvs(N),
+            'T'   : self.Tdistribution.rvs(N),
+            'TP'  : self.TPdistribution.rvs(N),
+        }
+
+        filter = (amplitudes['QRS'] < self.QRS_ampl_low_thres) | (amplitudes['QRS'] > self.QRS_ampl_high_thres)
+        while np.any(filter):
+            amplitudes['QRS'][filter] = self.QRSdistribution.rvs(filter.sum())
+            filter = (amplitudes['QRS'] < self.QRS_ampl_low_thres) | (amplitudes['QRS'] > self.QRS_ampl_high_thres)
+        amplitudes['QRS'] = amplitudes['QRS'].clip(max=1)
+
+        return amplitudes
 
 
     def apply_AF(self, signal: np.ndarray):
