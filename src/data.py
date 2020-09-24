@@ -24,6 +24,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_elevation = 0.2, proba_interpolation = 0.2,
                  proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
                  proba_TV = 0.05, proba_AF = 0.05, proba_ectopics = 0.25, 
+                 ectopic_amplitude_threshold = 0.1, apply_smoothing = True,
                  proba_flatline = 0.05, proba_tachy = 0.05, 
                  tachy_maxlen = 10, add_baseline_wander = True, 
                  amplitude_std = 0.25, interp_std = 0.25,
@@ -70,6 +71,8 @@ class Dataset(torch.utils.data.Dataset):
         self.mixup_alpha = mixup_alpha
         self.mixup_beta = mixup_beta
         self.tachy_maxlen = tachy_maxlen
+        self.ectopic_amplitude_threshold = ectopic_amplitude_threshold
+        self.apply_smoothing = apply_smoothing
         self.return_beats = return_beats
         self.scaling_metric = scaling_metric
         self.QRS_ampl_low_thres = QRS_ampl_low_thres
@@ -147,39 +150,39 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def get_distribution(self, type: str):
-        if   type == 'P':   return self.Pdistribution
-        elif type == 'PQ':  return self.PQdistribution
-        elif type == 'QRS': return self.QRSdistribution
-        elif type == 'ST':  return self.STdistribution
-        elif type == 'T':   return self.Tdistribution
-        elif type == 'TP':  return self.TPdistribution
+        if type ==   'P': return self.Pdistribution
+        if type ==  'PQ': return self.PQdistribution
+        if type == 'QRS': return self.QRSdistribution
+        if type ==  'ST': return self.STdistribution
+        if type ==   'T': return self.Tdistribution
+        if type ==  'TP': return self.TPdistribution
 
 
     def get_keys(self, type: str):
-        if   type == 'P':   return self.Pkeys
-        elif type == 'PQ':  return self.PQkeys
-        elif type == 'QRS': return self.QRSkeys
-        elif type == 'ST':  return self.STkeys
-        elif type == 'T':   return self.Tkeys
-        elif type == 'TP':  return self.TPkeys
+        if type ==   'P': return self.Pkeys
+        if type ==  'PQ': return self.PQkeys
+        if type == 'QRS': return self.QRSkeys
+        if type ==  'ST': return self.STkeys
+        if type ==   'T': return self.Tkeys
+        if type ==  'TP': return self.TPkeys
 
 
     def get_waves(self, type: str):
-        if   type == 'P':   return self.P
-        elif type == 'PQ':  return self.PQ
-        elif type == 'QRS': return self.QRS
-        elif type == 'ST':  return self.ST
-        elif type == 'T':   return self.T
-        elif type == 'TP':  return self.TP
+        if type ==   'P': return self.P
+        if type ==  'PQ': return self.PQ
+        if type == 'QRS': return self.QRS
+        if type ==  'ST': return self.ST
+        if type ==   'T': return self.T
+        if type ==  'TP': return self.TP
 
 
     def get_segment_post_function(self, type: str):
-        if   type == 'P':   return self.P_post_operation
-        elif type == 'PQ':  return self.PQ_post_operation
-        elif type == 'QRS': return self.QRS_post_operation
-        elif type == 'ST':  return self.ST_post_operation
-        elif type == 'T':   return self.T_post_operation
-        elif type == 'TP':  return self.TP_post_operation
+        if type ==   'P': return self.P_post_operation
+        if type ==  'PQ': return self.PQ_post_operation
+        if type == 'QRS': return self.QRS_post_operation
+        if type ==  'ST': return self.ST_post_operation
+        if type ==   'T': return self.T_post_operation
+        if type ==  'TP': return self.TP_post_operation
     
     def P_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         return segment
@@ -190,7 +193,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def QRS_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        # if   dict_globals['has_ectopics']: self.interpolate_segment(segment, np.random.randint(30,120))
+        if dict_globals['IDs']['ectopics'][index]: segment = self.apply_ectopic_qrs(segment, dict_globals, index)
         return segment
 
 
@@ -201,6 +204,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def T_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
+        if dict_globals['IDs']['ectopics'][index]: segment = self.apply_ectopic_t(segment, dict_globals, index)
         return segment
 
 
@@ -218,13 +222,38 @@ class Dataset(torch.utils.data.Dataset):
         return new_segment
 
 
-    # def apply_ectopic(self, segment: np.ndarray):
-    #     crossings = utils.signal.zero_crossings(segment)[0]
-    #     sign_t = -np.sign(utils.signal.signed_maxima(qrs[crossings[-2]:crossings[-1]]))
-    #     segment = 
-    #     ampl = Tdistribution.rvs()*2
-    #     print(ampl)
-    #     t_new = t*((-1)**(not np.allclose(utils.signal.signed_maxima(t),sign_t)))*ampl
+    def apply_ectopic_qrs(self, segment: np.ndarray, dict_globals: dict, index: int):
+        crossings = utils.signal.zero_crossings(segment)[0]
+        dict_globals['sign_t'] = -np.sign(utils.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
+        a_max = np.argmax(np.abs(segment))
+        if (crossings[-2] <= a_max) and (crossings[-1] >= a_max):
+            sign_elevation = dict_globals['sign_t']
+        else:
+            sign_elevation = -dict_globals['sign_t']
+        segment = self.interpolate_segment(segment,np.random.randint(30,90))
+        segment = self.apply_elevation(segment,0.5,sign_elevation)
+        return segment
+
+
+    def apply_ectopic_t(self, segment: np.ndarray, dict_globals: dict, index: int):
+        # Only apply if sign w.r.t. qrs is known
+        if 'sign_t' in dict_globals:
+            # Retrieve sign
+            sign_t = dict_globals['sign_t']
+
+            # Check if signs differ; if so, reverse T wave
+            segment *= (-1)**(np.sign(utils.signal.signed_maxima(segment)) != sign_t)
+
+            # Delete for future overwriting
+            dict_globals.pop('sign_t') # Delete from globals for next ectopic
+
+            # Apply elevation
+            segment = self.apply_elevation(segment,0.5,-sign_t)
+
+        # # Enlarge segment's amplitude
+        # segment *= 2
+
+        return segment
 
 
     def __getitem__(self, i):
@@ -267,8 +296,11 @@ class Dataset(torch.utils.data.Dataset):
         signal = signal[on:on+self.N]
         masks = masks[:,on:on+self.N]
 
+        # 5.6. Smooth result
+        if self.apply_smoothing: signal = self.smooth(signal, 3)
+
         # 6. Return
-        if self.return_beats: return signal[None,].astype('float32'), masks, beats, beat_types
+        if self.return_beats: return signal[None,].astype('float32'), masks, beats, beat_types, dict_globals
         else:                 return signal[None,].astype('float32'), masks
 
 
@@ -296,6 +328,8 @@ class Dataset(torch.utils.data.Dataset):
 
     def segment_compose(self, index: int, type: str, dict_globals: dict, qrs_amplitude: float):
         # Retrieve segment information
+        if dict_globals['IDs'][type][index] == -1:
+            return None
         segment = self.get_segment(type, dict_globals['IDs'][type][index])
 
         # Segment post-operation
@@ -379,7 +413,7 @@ class Dataset(torch.utils.data.Dataset):
 
         # Apply right extrema elevation/depression
         if np.random.rand() < self.proba_elevation:
-            segment = self.apply_elevation(segment)
+            segment = self.apply_elevation(segment, dict_globals['amplitudes'][type][index]/10)
         
         return segment
 
@@ -500,6 +534,7 @@ class Dataset(torch.utils.data.Dataset):
         # Generate ectopics
         IDs['ectopics'] = np.random.rand(N) < self.proba_ectopics
         IDs['P'][IDs['ectopics']] = -1
+        IDs['ST'][IDs['ectopics']] = -1
 
         return IDs
 
@@ -517,11 +552,34 @@ class Dataset(torch.utils.data.Dataset):
             'TP'  : self.TPdistribution.rvs(N),
         }
 
+        # QRS in case low/high voltage
         filter = (amplitudes['QRS'] < self.QRS_ampl_low_thres) | (amplitudes['QRS'] > self.QRS_ampl_high_thres)
         while np.any(filter):
-            amplitudes['QRS'][filter] = self.QRSdistribution.rvs(filter.sum())
+            # Retrieve generous sample, faster than sampling twice
+            new_amplitudes = self.QRSdistribution.rvs(N)
+            new_amplitudes = new_amplitudes[(new_amplitudes >= self.QRS_ampl_low_thres) | (new_amplitudes <= self.QRS_ampl_high_thres)]
+            # Pad/crop the new amplitudes
+            pad_len = filter.sum()-new_amplitudes.size
+            if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
+            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
+            # Input into the amplitudes vector
+            amplitudes['QRS'][filter] = new_amplitudes
             filter = (amplitudes['QRS'] < self.QRS_ampl_low_thres) | (amplitudes['QRS'] > self.QRS_ampl_high_thres)
         amplitudes['QRS'] = amplitudes['QRS'].clip(max=1)
+
+        # T wave in case ectopics
+        filter = (amplitudes['T'] < self.ectopic_amplitude_threshold) & dict_globals['IDs']['ectopics']
+        while np.any(filter):
+            # Retrieve generous sample, faster than sampling twice
+            new_amplitudes = self.Tdistribution.rvs(N)
+            new_amplitudes = new_amplitudes[new_amplitudes >= self.ectopic_amplitude_threshold]
+            # Pad/crop the new amplitudes
+            pad_len = filter.sum()-new_amplitudes.size
+            if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
+            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
+            # Input into the amplitudes vector
+            amplitudes['T'][filter] = new_amplitudes
+            filter = (amplitudes['T'] < self.ectopic_amplitude_threshold) & dict_globals['IDs']['ectopics']
 
         return amplitudes
 
