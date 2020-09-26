@@ -62,6 +62,7 @@ class Dataset(torch.utils.data.Dataset):
         # Ints'n'stuff
         self.length = length
         self.N = N
+        self.cycles = self.N//32 # Rule of thumb
         self.noise = noise
         self.proba_baseline_wander = proba_baseline_wander
         self.smoothing_window = smoothing_window
@@ -121,9 +122,9 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def apply_elevation(self, segment: np.ndarray, max_amplitude: float = 0.05, sign: [-1,1] = None):
+    def apply_elevation(self, segment: np.ndarray, amplitude: float, sign: [-1,1] = None, randomize: bool = False):
         # Randomize amplitude
-        amplitude = np.random.rand()*max_amplitude
+        if randomize: amplitude = np.random.rand()*amplitude
         # Copy segment
         segment = np.copy(segment)
         # Randomly choose elevation/depression
@@ -262,6 +263,7 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals = self.generate_globals()
         dict_globals['IDs'] = self.generate_IDs(dict_globals)
         dict_globals['amplitudes'] = self.generate_amplitudes(dict_globals)
+        dict_globals['elevations'] = self.generate_elevations(dict_globals)
         
         ##### Output data structure
         beats = []
@@ -411,9 +413,9 @@ class Dataset(torch.utils.data.Dataset):
             new_size = max(int((segment.size*norm.rvs(1,0.25).clip(min=0.25))),1)
             segment = self.interpolate_segment(segment, new_size)
 
-        # Apply right extrema elevation/depression
-        if np.random.rand() < self.proba_elevation:
-            segment = self.apply_elevation(segment, dict_globals['amplitudes'][type][index]/10)
+        # # Apply right extrema elevation/depression
+        # if np.random.rand() < self.proba_elevation:
+        #     segment = self.apply_elevation(segment, dict_globals['amplitudes'][type][index]/10)
         
         return segment
 
@@ -481,6 +483,7 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals['has_TV'] = np.random.rand() < self.proba_TV
         dict_globals['has_AF'] = np.random.rand() < self.proba_AF
         dict_globals['has_tachy'] = np.random.rand() < self.proba_tachy
+        dict_globals['has_elevations'] = np.random.rand() < self.proba_elevation
         dict_globals['has_baseline_wander'] = np.random.rand() < self.proba_baseline_wander
         
         # Logical if has TV
@@ -500,63 +503,41 @@ class Dataset(torch.utils.data.Dataset):
         return dict_globals
 
 
-    def generate_elevations(self, dict_globals: dict):
-        elevations = {}
-
-        # Generate elevation template
-        elevation_template = np.random.rand(self.N//32,6)
-
-        # Refine template's results - zero if the ID is zero
-        filt = np.vstack((dict_globals['IDs']['P'],   dict_globals['IDs']['PQ'],
-                          dict_globals['IDs']['QRS'], dict_globals['IDs']['ST'],
-                          dict_globals['IDs']['T'],   dict_globals['IDs']['TP'])).T
-        filt = filt == -1
-        elevation_template[filt] = 0
-
-        # Define % elevation per active segment
-        elevation_template = elevation_template/elevation_template.sum(-1,keepdims=True) - 1/np.logical_not(filt).sum(0, keepdims=True)
-
-        return elevations
-
-
     def generate_IDs(self, dict_globals: dict):
         IDs = {}
 
-        # Number of generated cycles (unrealistic upper limit)
-        N = self.N//32
-
         ##### Identifiers
         if dict_globals['same_morph']:
-            IDs[  'P'] = np.array([np.random.randint(len(  self.P))]*N)
-            IDs[ 'PQ'] = np.array([np.random.randint(len( self.PQ))]*N)
-            IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*N)
-            IDs[ 'ST'] = np.array([np.random.randint(len( self.ST))]*N)
-            IDs[  'T'] = np.array([np.random.randint(len(  self.T))]*N)
-            IDs[ 'TP'] = np.array([np.random.randint(len( self.TP))]*N)
+            IDs[  'P'] = np.array([np.random.randint(len(  self.P))]*self.cycles)
+            IDs[ 'PQ'] = np.array([np.random.randint(len( self.PQ))]*self.cycles)
+            IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*self.cycles)
+            IDs[ 'ST'] = np.array([np.random.randint(len( self.ST))]*self.cycles)
+            IDs[  'T'] = np.array([np.random.randint(len(  self.T))]*self.cycles)
+            IDs[ 'TP'] = np.array([np.random.randint(len( self.TP))]*self.cycles)
         else:
-            IDs[  'P'] = np.random.randint(len(  self.P), size=N)
-            IDs[ 'PQ'] = np.random.randint(len( self.PQ), size=N)
-            IDs['QRS'] = np.random.randint(len(self.QRS), size=N)
-            IDs[ 'ST'] = np.random.randint(len( self.ST), size=N)
-            IDs[  'T'] = np.random.randint(len(  self.T), size=N)
-            IDs[ 'TP'] = np.random.randint(len( self.TP), size=N)
+            IDs[  'P'] = np.random.randint(len(  self.P), size=self.cycles)
+            IDs[ 'PQ'] = np.random.randint(len( self.PQ), size=self.cycles)
+            IDs['QRS'] = np.random.randint(len(self.QRS), size=self.cycles)
+            IDs[ 'ST'] = np.random.randint(len( self.ST), size=self.cycles)
+            IDs[  'T'] = np.random.randint(len(  self.T), size=self.cycles)
+            IDs[ 'TP'] = np.random.randint(len( self.TP), size=self.cycles)
 
         if dict_globals['has_AF']:
-            IDs['P'] = np.repeat(np.random.randint(len(self.P)),N)
+            IDs['P'] = np.repeat(np.random.randint(len(self.P)),self.cycles)
 
         # In case QRS is not expressed
-        filt_QRS = np.random.rand(N) > (1-self.proba_no_QRS)
+        filt_QRS = np.random.rand(self.cycles) > (1-self.proba_no_QRS)
 
         # Exceptions according to different conditions
-        IDs[  'P'][           (np.random.rand(N) < self.proba_no_P)  | dict_globals['no_P']  | dict_globals['has_TV']] = -1
-        IDs[ 'PQ'][filt_QRS | (np.random.rand(N) < self.proba_no_PQ) | dict_globals['no_PQ'] | dict_globals['has_TV']] = -1
+        IDs[  'P'][           (np.random.rand(self.cycles) < self.proba_no_P)  | dict_globals['no_P']  | dict_globals['has_TV']] = -1
+        IDs[ 'PQ'][filt_QRS | (np.random.rand(self.cycles) < self.proba_no_PQ) | dict_globals['no_PQ'] | dict_globals['has_TV']] = -1
         IDs['QRS'][filt_QRS] = -1
-        IDs[ 'ST'][filt_QRS | (np.random.rand(N) < self.proba_no_ST) | dict_globals['no_ST']] = -1
+        IDs[ 'ST'][filt_QRS | (np.random.rand(self.cycles) < self.proba_no_ST) | dict_globals['no_ST']] = -1
         IDs[  'T'][filt_QRS] = -1
-        IDs[ 'TP'][np.full((N),dict_globals['has_TV'],dtype=bool)] = -1
+        IDs[ 'TP'][np.full((self.cycles),dict_globals['has_TV'],dtype=bool)] = -1
 
         # Generate ectopics
-        IDs['ectopics'] = np.random.rand(N) < self.proba_ectopics
+        IDs['ectopics'] = np.random.rand(self.cycles) < self.proba_ectopics
         # Logical if has TV
         if dict_globals['has_TV']: IDs['ectopics'] = np.ones_like(IDs['ectopics'],dtype=bool)
         IDs['P'][IDs['ectopics']] = -1
@@ -566,23 +547,20 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def generate_amplitudes(self, dict_globals: dict):
-        # Number of generated cycles (unrealistic upper limit)
-        N = self.N//32
-
         amplitudes = {
-            'P'   : self.Pdistribution.rvs(N),
-            'PQ'  : self.PQdistribution.rvs(N),
-            'QRS' : self.QRSdistribution.rvs(N),
-            'ST'  : self.STdistribution.rvs(N),
-            'T'   : self.Tdistribution.rvs(N),
-            'TP'  : self.TPdistribution.rvs(N),
+            'P'   : self.Pdistribution.rvs(self.cycles),
+            'PQ'  : self.PQdistribution.rvs(self.cycles),
+            'QRS' : self.QRSdistribution.rvs(self.cycles),
+            'ST'  : self.STdistribution.rvs(self.cycles),
+            'T'   : self.Tdistribution.rvs(self.cycles),
+            'TP'  : self.TPdistribution.rvs(self.cycles),
         }
 
         # QRS in case low/high voltage
         filter = (amplitudes['QRS'] < self.QRS_ampl_low_thres) | (amplitudes['QRS'] > self.QRS_ampl_high_thres)
         while np.any(filter):
             # Retrieve generous sample, faster than sampling twice
-            new_amplitudes = self.QRSdistribution.rvs(N)
+            new_amplitudes = self.QRSdistribution.rvs(self.cycles)
             new_amplitudes = new_amplitudes[(new_amplitudes >= self.QRS_ampl_low_thres) | (new_amplitudes <= self.QRS_ampl_high_thres)]
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
@@ -597,7 +575,7 @@ class Dataset(torch.utils.data.Dataset):
         filter = (amplitudes['T'] < self.ectopic_amplitude_threshold) & dict_globals['IDs']['ectopics']
         while np.any(filter):
             # Retrieve generous sample, faster than sampling twice
-            new_amplitudes = self.Tdistribution.rvs(N)
+            new_amplitudes = self.Tdistribution.rvs(self.cycles)
             new_amplitudes = new_amplitudes[new_amplitudes >= self.ectopic_amplitude_threshold]
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
@@ -608,6 +586,36 @@ class Dataset(torch.utils.data.Dataset):
             filter = (amplitudes['T'] < self.ectopic_amplitude_threshold) & dict_globals['IDs']['ectopics']
 
         return amplitudes
+
+
+    def generate_elevations(self, dict_globals: dict):
+        elevations = {}
+
+        # Generate elevation template
+        elevation_template = np.random.rand(self.cycles,6)
+
+        # Refine template's results - zero if the ID is zero
+        filt = np.vstack((dict_globals['IDs']['P'],   dict_globals['IDs']['PQ'],
+                        dict_globals['IDs']['QRS'], dict_globals['IDs']['ST'],
+                        dict_globals['IDs']['T'],   dict_globals['IDs']['TP'])).T == -1
+        elevation_template[filt] = 0
+
+        # Define correction factor for number of non-negative amplitudes
+        num_elements = np.logical_not(filt).sum(-1,keepdims=True)
+        correction_factor = 1/(np.ones_like(filt,dtype=int)*num_elements)
+        correction_factor[filt] = 0
+
+        # Define % elevation per active segment
+        elevation_template = elevation_template/elevation_template.sum(-1,keepdims=True) - correction_factor
+
+        elevations['P']   = elevation_template[:,0]
+        elevations['PQ']  = elevation_template[:,1]
+        elevations['QRS'] = elevation_template[:,2]
+        elevations['ST']  = elevation_template[:,3]
+        elevations['T']   = elevation_template[:,4]
+        elevations['TP']  = elevation_template[:,5]
+
+        return elevations
 
 
     def apply_AF(self, signal: np.ndarray):
