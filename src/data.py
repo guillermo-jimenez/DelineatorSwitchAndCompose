@@ -26,7 +26,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_TV = 0.05, proba_AF = 0.05, proba_ectopics = 0.25, 
                  ectopic_amplitude_threshold = 0.1, apply_smoothing = True,
                  proba_flatline = 0.05, proba_tachy = 0.05, 
-                 tachy_maxlen = 10, add_baseline_wander = True, 
+                 tachy_maxlen = 10, proba_baseline_wander = 0.5, 
                  amplitude_std = 0.25, interp_std = 0.25,
                  smoothing_window = 51, labels_as_masks = True, 
                  QRS_ampl_low_thres = 0.1, QRS_ampl_high_thres = 1.15,
@@ -63,7 +63,7 @@ class Dataset(torch.utils.data.Dataset):
         self.length = length
         self.N = N
         self.noise = noise
-        self.add_baseline_wander = add_baseline_wander
+        self.proba_baseline_wander = proba_baseline_wander
         self.smoothing_window = smoothing_window
         self.labels_as_masks = labels_as_masks
         self.amplitude_std = amplitude_std
@@ -287,9 +287,9 @@ class Dataset(torch.utils.data.Dataset):
         signal = signal*dict_globals['global_amplitude']
 
         # 5.4. Apply whole-signal modifications
-        if self.add_baseline_wander:     signal += self.random_walk(size=signal.size,smoothing_window=self.smoothing_window)
-        if dict_globals['has_AF']:       signal = self.apply_AF(signal)
-        if dict_globals['has_flatline']: signal, masks = self.add_flatline(signal, masks, dict_globals)
+        if dict_globals['has_baseline_wander']: signal += self.smooth(self.random_walk(size=signal.size,smoothing_window=self.smoothing_window),self.N//8)
+        if dict_globals['has_AF']:              signal = self.apply_AF(signal)
+        if dict_globals['has_flatline']:        signal, masks = self.add_flatline(signal, masks, dict_globals)
         
         # 5.5. Apply random onset for avoiding always starting with the same wave at the same location
         on = dict_globals['index_onset']
@@ -473,15 +473,20 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals = {}
 
         # Probabilities of waves
-        dict_globals['has_same_morph'] = np.random.rand() < self.proba_same_morph
-        dict_globals['does_not_have_P'] = np.random.rand() < self.proba_no_P
-        dict_globals['does_not_have_PQ'] = np.random.rand() < self.proba_no_PQ
-        dict_globals['does_not_have_ST'] = np.random.rand() < self.proba_no_ST
+        dict_globals['same_morph'] = np.random.rand() < self.proba_same_morph
+        dict_globals['no_P'] = np.random.rand() < self.proba_no_P
+        dict_globals['no_PQ'] = np.random.rand() < self.proba_no_PQ
+        dict_globals['no_ST'] = np.random.rand() < self.proba_no_ST
         dict_globals['has_flatline'] = np.random.rand() < self.proba_flatline
         dict_globals['has_TV'] = np.random.rand() < self.proba_TV
         dict_globals['has_AF'] = np.random.rand() < self.proba_AF
         dict_globals['has_tachy'] = np.random.rand() < self.proba_tachy
+        dict_globals['has_baseline_wander'] = np.random.rand() < self.proba_baseline_wander
         
+        # Logical if has TV
+        if dict_globals['has_TV']: dict_globals['has_tachy'] = True
+        if dict_globals['has_TV']: dict_globals['same_morph'] = True
+       
         # Set hyperparameters
         dict_globals['index_onset'] = np.random.randint(50)
         dict_globals['begining_wave'] = np.random.randint(6)
@@ -495,6 +500,25 @@ class Dataset(torch.utils.data.Dataset):
         return dict_globals
 
 
+    def generate_elevations(self, dict_globals: dict):
+        elevations = {}
+
+        # Generate elevation template
+        elevation_template = np.random.rand(self.N//32,6)
+
+        # Refine template's results - zero if the ID is zero
+        filt = np.vstack((dict_globals['IDs']['P'],   dict_globals['IDs']['PQ'],
+                          dict_globals['IDs']['QRS'], dict_globals['IDs']['ST'],
+                          dict_globals['IDs']['T'],   dict_globals['IDs']['TP'])).T
+        filt = filt == -1
+        elevation_template[filt] = 0
+
+        # Define % elevation per active segment
+        elevation_template = elevation_template/elevation_template.sum(-1,keepdims=True) - 1/np.logical_not(filt).sum(0, keepdims=True)
+
+        return elevations
+
+
     def generate_IDs(self, dict_globals: dict):
         IDs = {}
 
@@ -502,7 +526,7 @@ class Dataset(torch.utils.data.Dataset):
         N = self.N//32
 
         ##### Identifiers
-        if dict_globals['has_same_morph']:
+        if dict_globals['same_morph']:
             IDs[  'P'] = np.array([np.random.randint(len(  self.P))]*N)
             IDs[ 'PQ'] = np.array([np.random.randint(len( self.PQ))]*N)
             IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*N)
@@ -524,15 +548,17 @@ class Dataset(torch.utils.data.Dataset):
         filt_QRS = np.random.rand(N) > (1-self.proba_no_QRS)
 
         # Exceptions according to different conditions
-        IDs[  'P'][           (np.random.rand(N) < self.proba_no_P)  | dict_globals['does_not_have_P']  | dict_globals['has_TV']] = -1
-        IDs[ 'PQ'][filt_QRS | (np.random.rand(N) < self.proba_no_PQ) | dict_globals['does_not_have_PQ'] | dict_globals['has_TV']] = -1
+        IDs[  'P'][           (np.random.rand(N) < self.proba_no_P)  | dict_globals['no_P']  | dict_globals['has_TV']] = -1
+        IDs[ 'PQ'][filt_QRS | (np.random.rand(N) < self.proba_no_PQ) | dict_globals['no_PQ'] | dict_globals['has_TV']] = -1
         IDs['QRS'][filt_QRS] = -1
-        IDs[ 'ST'][filt_QRS | (np.random.rand(N) < self.proba_no_ST) | dict_globals['does_not_have_ST']] = -1
+        IDs[ 'ST'][filt_QRS | (np.random.rand(N) < self.proba_no_ST) | dict_globals['no_ST']] = -1
         IDs[  'T'][filt_QRS] = -1
         IDs[ 'TP'][np.full((N),dict_globals['has_TV'],dtype=bool)] = -1
 
         # Generate ectopics
         IDs['ectopics'] = np.random.rand(N) < self.proba_ectopics
+        # Logical if has TV
+        if dict_globals['has_TV']: IDs['ectopics'] = np.ones_like(IDs['ectopics'],dtype=bool)
         IDs['P'][IDs['ectopics']] = -1
         IDs['ST'][IDs['ectopics']] = -1
 
