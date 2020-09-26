@@ -1,4 +1,4 @@
-from typing import Callable, Tuple
+from typing import Callable, Tuple, List
 import torch
 import torch.utils
 import numpy as np
@@ -27,11 +27,11 @@ class Dataset(torch.utils.data.Dataset):
                  ectopic_amplitude_threshold = 0.1, apply_smoothing = True,
                  proba_flatline = 0.05, proba_tachy = 0.05, 
                  tachy_maxlen = 10, proba_baseline_wander = 0.5, 
-                 amplitude_std = 0.25, interp_std = 0.25,
-                 smoothing_window = 51, labels_as_masks = True, 
+                 baseline_noise_scale = 0.005, baseline_smoothing_window = 51, 
+                 amplitude_std = 0.25, interp_std = 0.25, 
                  QRS_ampl_low_thres = 0.1, QRS_ampl_high_thres = 1.15,
                  scaling_metric: Callable = utils.signal.amplitude,
-                 return_beats: bool = False):
+                 labels_as_masks = True, return_beats: bool = False):
         #### Segments ####
         # P wave
         self.P = P
@@ -65,7 +65,8 @@ class Dataset(torch.utils.data.Dataset):
         self.cycles = self.N//32 # Rule of thumb
         self.noise = noise
         self.proba_baseline_wander = proba_baseline_wander
-        self.smoothing_window = smoothing_window
+        self.baseline_smoothing_window = baseline_smoothing_window
+        self.baseline_noise_scale = baseline_noise_scale
         self.labels_as_masks = labels_as_masks
         self.amplitude_std = amplitude_std
         self.interp_std = interp_std
@@ -118,7 +119,7 @@ class Dataset(torch.utils.data.Dataset):
 
         # 5. Registry-wise post-operations
         # 5.0. Trail onsets
-        beats = self.apply_onset_trailing(beats)
+        beats = self.beats_onset_trailing(beats)
 
         # 5.1. Concatenate signal and mask
         signal = np.concatenate(beats)
@@ -126,16 +127,16 @@ class Dataset(torch.utils.data.Dataset):
         
         # 5.2. Interpolate signal & mask
         int_len = math.ceil(signal.size*dict_globals['interp_length'])
-        signal = self.interpolate_segment(signal,int_len)
-        masks = self.interpolate_segment(masks,int_len,axis=-1,kind='next').astype(masks.dtype)
+        signal = self.interpolate(signal,int_len)
+        masks = self.interpolate(masks,int_len,axis=-1,kind='next').astype(masks.dtype)
 
         # 5.3. Apply global amplitude modulation
         signal = signal*dict_globals['global_amplitude']
 
         # 5.4. Apply whole-signal modifications
-        if dict_globals['has_baseline_wander']: signal += self.smooth(self.random_walk(size=signal.size,smoothing_window=self.smoothing_window),self.N//8)
-        if dict_globals['has_AF']:              signal = self.apply_AF(signal)
-        if dict_globals['has_flatline']:        signal, masks = self.apply_flatline(signal, masks, dict_globals)
+        if dict_globals['has_baseline_wander']: signal = self.signal_baseline_wander(signal)
+        if dict_globals['has_AF']:              signal = self.signal_AF(signal)
+        if dict_globals['has_flatline']:        signal, masks = self.signal_flatline(signal, masks, dict_globals)
         
         # 5.5. Apply random onset for avoiding always starting with the same wave at the same location
         on = dict_globals['index_onset']
@@ -340,6 +341,7 @@ class Dataset(torch.utils.data.Dataset):
         return mask
 
 
+    ################# GET METHODS #################
     def get_distribution(self, type: str):
         if type ==   'P': return self.Pdistribution
         if type ==  'PQ': return self.PQdistribution
@@ -375,55 +377,6 @@ class Dataset(torch.utils.data.Dataset):
         if type ==   'T': return self.T_post_operation
         if type ==  'TP': return self.TP_post_operation
     
-    def P_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        return segment
-
-
-    def PQ_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        return segment
-
-
-    def QRS_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if dict_globals['IDs']['ectopics'][index]: segment = self.apply_ectopic_qrs(segment, dict_globals, index)
-        return segment
-
-
-    def ST_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if   dict_globals['has_TV']:    segment = self.random_walk(size=np.random.randint(2,32))
-        elif dict_globals['has_tachy']: segment = self.apply_tachy(segment)
-        return segment
-
-
-    def T_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if dict_globals['IDs']['ectopics'][index]: segment = self.apply_ectopic_t(segment, dict_globals, index)
-        return segment
-
-
-    def TP_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if dict_globals['has_tachy']:   segment = self.apply_tachy(segment)
-        return segment
-
-
-    def segment_compose(self, index: int, type: str, dict_globals: dict, qrs_amplitude: float):
-        # Retrieve segment information
-        if dict_globals['IDs'][type][index] == -1:
-            return None
-        segment = self.get_segment(type, dict_globals['IDs'][type][index])
-
-        # Segment post-operation
-        segment = self.segment_post_operation(type, segment, dict_globals, index)
-
-        # If empty, skip to next
-        if segment.size == 0: return
-
-        # Otherwise, apply post-operations
-        segment = self.general_post_operation(segment, type, dict_globals, index)
-
-        # Apply amplitude modulation
-        segment = self.apply_amplitude(index, segment, type, qrs_amplitude, dict_globals)
-        
-        return segment
-
 
     def get_segment(self, type: str, id: int = None):
         # Get wave information
@@ -439,36 +392,14 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def segment_post_operation(self, type: str, segment: np.ndarray, dict_globals: dict, index: int):
-        post_segment_fnc = self.get_segment_post_function(type)
-        
-        # Apply wave-specific modifications to the segment
-        segment = post_segment_fnc(segment, dict_globals, index)
-
-        return segment
+    ################# SIGNAL-LEVEL FUNCTIONS #################
+    def signal_baseline_wander(self, signal: np.ndarray):
+        baseline = self.random_walk(scale=self.baseline_noise_scale, size=signal.size, smoothing_window=self.baseline_smoothing_window)
+        signal = signal + baseline
+        return signal
 
 
-    def general_post_operation(self, segment: np.ndarray, type: str, dict_globals: dict, index: int):
-        # Apply mixup (if applicable)
-        if (np.random.rand() < self.proba_mixup) and (type in ['P','QRS','T']):
-            segment2 = self.get_segment(type)
-            segment2 = self.segment_post_operation(type, segment2, dict_globals, index)
-            segment = self.apply_mixup(segment, segment2)
-
-        # Apply interpolation (if applicable, if segment is not empty)
-        if (np.random.rand() < self.proba_interpolation) and (segment.size > 1):
-            new_size = max(int((segment.size*norm.rvs(1,0.25).clip(min=0.25))),1)
-            segment = self.interpolate_segment(segment, new_size)
-
-        # # Apply right extrema elevation/depression
-        # if np.random.rand() < self.proba_elevation:
-        #     segment = self.apply_elevation(segment, dict_globals['amplitudes'][type][index]/10)
-        
-        return segment
-
-
-    ################# APPLY OPERATIONS #################
-    def apply_flatline(self, signal: np.ndarray, masks: np.ndarray, dict_globals: dict) -> Tuple[np.ndarray, np.ndarray]:
+    def signal_flatline(self, signal: np.ndarray, masks: np.ndarray, dict_globals: dict) -> Tuple[np.ndarray, np.ndarray]:
         signal = np.pad(signal, (dict_globals['flatline_left'],dict_globals['flatline_right']), mode='edge')
         if self.labels_as_masks:
             masks = np.pad(masks, ((0,0),(dict_globals['flatline_left'],dict_globals['flatline_right'])), mode='constant', constant_values=0)
@@ -477,45 +408,7 @@ class Dataset(torch.utils.data.Dataset):
         return signal, masks
 
 
-    def apply_amplitude(self, index: int, segment: np.ndarray, type: str, qrs_amplitude: float, dict_globals: dict):
-        if type == 'QRS':
-            amplitude = qrs_amplitude
-        else:
-            # Draw from distribution
-            amplitude = qrs_amplitude*dict_globals['amplitudes'][type][index] # Apply amplitude on segment
-
-            # Hotfix: conditional to range of QRS amplitude
-            if   qrs_amplitude < 0.2: amplitude *= 2.5
-            elif qrs_amplitude < 0.4: amplitude *= 1.5
-
-        # Apply per-segment noising
-        amplitude *= 0.15*np.random.randn()+1
-
-        # Apply amplitude modulation to segment
-        segment *= amplitude
-        
-        return segment
-
-
-    def apply_onset_trailing(self, beats: list):
-        onset = 0.0
-        for i,segment in enumerate(beats):
-            segment = self.trail_onset(segment, onset)
-            beats[i] = segment
-            onset = segment[-1]
-        return beats
-
-
-    def apply_mixup(self, segment1: np.ndarray, segment2: np.ndarray):
-        if segment1.size != segment2.size:
-            segment2 = self.interpolate_segment(segment2, segment1.size)
-        (mixup_segment,_) = utils.data.augmentation.mixup(segment1,segment2,self.mixup_alpha,self.mixup_beta)
-        mixup_segment = utils.data.ball_scaling(mixup_segment,metric=self.scaling_metric)
-
-        return mixup_segment
-
-
-    def apply_AF(self, signal: np.ndarray):
+    def signal_AF(self, signal: np.ndarray):
         # select random P wave as template
         pAF = self.get_segment('P')
         N = signal.size
@@ -552,23 +445,137 @@ class Dataset(torch.utils.data.Dataset):
         return signal
 
 
-    def apply_elevation(self, segment: np.ndarray, amplitude: float, sign: [-1,1] = None, randomize: bool = False):
+    ################# BEATS-LEVEL FUNCTIONS #################
+    def beats_onset_trailing(self, beats: list):
+        onset = 0.0
+        for i,segment in enumerate(beats):
+            segment = self.segment_trail(segment, onset)
+            beats[i] = segment
+            onset = segment[-1]
+        return beats
+
+
+    def beats_elevation(self, beats: List[np.ndarray], dict_globals: dict):
+        for i,beat in enumerate(beats):
+            beats[i] = self.segment_elevation(beat,dict_globals['elevations'][i])
+        pass
+
+
+    ################# SEGMENT-LEVEL FUNCTIONS #################
+    def P_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
+        return segment
+
+
+    def PQ_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
+        return segment
+
+
+    def QRS_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
+        if dict_globals['IDs']['ectopics'][index]: segment = self.QRS_ectopic(segment, dict_globals, index)
+        return segment
+
+
+    def ST_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
+        if   dict_globals['has_TV']:    segment = self.random_walk(size=np.random.randint(2,32))
+        elif dict_globals['has_tachy']: segment = self.segment_tachy(segment)
+        return segment
+
+
+    def T_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
+        if dict_globals['IDs']['ectopics'][index]: segment = self.T_ectopic(segment, dict_globals, index)
+        return segment
+
+
+    def TP_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
+        if dict_globals['has_tachy']:   segment = self.segment_tachy(segment)
+        return segment
+
+
+    def segment_compose(self, index: int, type: str, dict_globals: dict, qrs_amplitude: float):
+        # Retrieve segment information
+        if dict_globals['IDs'][type][index] == -1:
+            return None
+        segment = self.get_segment(type, dict_globals['IDs'][type][index])
+
+        # Segment post-operation
+        segment = self.segment_post_operation(type, segment, dict_globals, index)
+
+        # If empty, skip to next
+        if segment.size == 0: return
+
+        # Apply amplitude modulation
+        segment = self.segment_amplitude(index, segment, type, qrs_amplitude, dict_globals)
+        
+        return segment
+
+
+    def segment_post_operation(self, type: str, segment: np.ndarray, dict_globals: dict, index: int):
+        post_segment_fnc = self.get_segment_post_function(type)
+        
+        # Apply wave-specific modifications to the segment
+        segment = post_segment_fnc(segment, dict_globals, index)
+
+        # If the segment is empty, return None
+        if segment.size == 0: return
+
+        # Apply mixup (if applicable)
+        if (np.random.rand() < self.proba_mixup) and (type in ['P','QRS','T']):
+            segment2 = self.get_segment(type)
+            segment2 = self.segment_post_operation(type, segment2, dict_globals, index)
+            segment = self.segment_mixup(segment, segment2)
+
+        # Apply interpolation (if applicable, if segment is not empty)
+        if (np.random.rand() < self.proba_interpolation) and (segment.size > 1):
+            new_size = max(int((segment.size*norm.rvs(1,0.25).clip(min=0.25))),1)
+            segment = self.interpolate(segment, new_size)
+
+        # # Apply right extrema elevation/depression
+        # if np.random.rand() < self.proba_elevation:
+        #     segment = self.segment_elevation(segment, dict_globals['amplitudes'][type][index]/10)
+        
+        return segment
+
+
+    def segment_amplitude(self, index: int, segment: np.ndarray, type: str, qrs_amplitude: float, dict_globals: dict):
+        if type == 'QRS':
+            amplitude = qrs_amplitude
+        else:
+            # Draw from distribution
+            amplitude = qrs_amplitude*dict_globals['amplitudes'][type][index] # Apply amplitude on segment
+
+            # Hotfix: conditional to range of QRS amplitude
+            if   qrs_amplitude < 0.2: amplitude *= 2.5
+            elif qrs_amplitude < 0.4: amplitude *= 1.5
+
+        # Apply per-segment noising
+        amplitude *= 0.15*np.random.randn()+1
+
+        # Apply amplitude modulation to segment
+        segment *= amplitude
+        
+        return segment
+
+
+    def segment_mixup(self, segment1: np.ndarray, segment2: np.ndarray):
+        if segment1.size != segment2.size:
+            segment2 = self.interpolate(segment2, segment1.size)
+        (mixup_segment,_) = utils.data.augmentation.mixup(segment1,segment2,self.mixup_alpha,self.mixup_beta)
+        mixup_segment = utils.data.ball_scaling(mixup_segment,metric=self.scaling_metric)
+
+        return mixup_segment
+
+
+    def segment_elevation(self, segment: np.ndarray, amplitude: float, randomize: bool = False):
         # Randomize amplitude
         if randomize: amplitude = np.random.rand()*amplitude
         # Copy segment
         segment = np.copy(segment)
-        # Randomly choose elevation/depression
-        if (sign not in [-1,1]) or (sign is None):
-            sign = np.random.choice([-1,1])
-        # Compute deviation (cuadratic at the moment)
-        linspace = np.linspace(0,np.sqrt(np.abs(amplitude)),segment.size)**2
-        deviation = sign*linspace
-        # Apply to segment
-        segment += deviation.squeeze()
+        # Apply elevation to segment (linear so far)
+        segment += np.linspace(0,amplitude,segment.size)
         return segment
 
 
-    def apply_tachy(self, segment: np.ndarray):
+    def segment_tachy(self, segment: np.ndarray):
         new_segment = segment[:np.random.randint(1,self.tachy_maxlen)]
         new_segment = utils.signal.on_off_correction(new_segment)
         if new_segment.ndim == 0:
@@ -577,7 +584,7 @@ class Dataset(torch.utils.data.Dataset):
         return new_segment
 
 
-    def apply_ectopic_qrs(self, segment: np.ndarray, dict_globals: dict, index: int):
+    def QRS_ectopic(self, segment: np.ndarray, dict_globals: dict, index: int):
         crossings = utils.signal.zero_crossings(segment)[0]
         dict_globals['sign_t'] = -np.sign(utils.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
         a_max = np.argmax(np.abs(segment))
@@ -585,12 +592,12 @@ class Dataset(torch.utils.data.Dataset):
             sign_elevation = dict_globals['sign_t']
         else:
             sign_elevation = -dict_globals['sign_t']
-        segment = self.interpolate_segment(segment,np.random.randint(30,90))
-        segment = self.apply_elevation(segment,0.5,sign_elevation)
+        segment = self.interpolate(segment,np.random.randint(30,90))
+        segment = self.segment_elevation(segment,0.5,sign_elevation)
         return segment
 
 
-    def apply_ectopic_t(self, segment: np.ndarray, dict_globals: dict, index: int):
+    def T_ectopic(self, segment: np.ndarray, dict_globals: dict, index: int):
         # Only apply if sign w.r.t. qrs is known
         if 'sign_t' in dict_globals:
             # Retrieve sign
@@ -603,7 +610,7 @@ class Dataset(torch.utils.data.Dataset):
             dict_globals.pop('sign_t') # Delete from globals for next ectopic
 
             # Apply elevation
-            segment = self.apply_elevation(segment,0.5,-sign_t)
+            segment = self.segment_elevation(segment,0.5,-sign_t)
 
         # # Enlarge segment's amplitude
         # segment *= 2
@@ -611,8 +618,15 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
+    def segment_trail(self, segment: np.ndarray, onset: float):
+        onset = onset-segment[0]
+        off = onset-segment[0]+segment[-1]
+        segment = segment+np.linspace(onset,off,segment.size,dtype=segment.dtype)
+        return segment
+
+
     ################# GENERAL UTILITIES #################
-    def interpolate_segment(self, y: np.ndarray, new_size: int, **kwargs):
+    def interpolate(self, y: np.ndarray, new_size: int, **kwargs):
         if y.size != new_size:
             if 'axis' in kwargs:
                 size = y.shape[kwargs['axis']]
@@ -636,13 +650,6 @@ class Dataset(torch.utils.data.Dataset):
             window = np.hamming(smoothing_window)/(smoothing_window//2)
             noise = np.convolve(noise, window, mode=conv_mode)
         return noise
-
-
-    def trail_onset(self, segment: np.ndarray, onset: float):
-        onset = onset-segment[0]
-        off = onset-segment[0]+segment[-1]
-        segment = segment+np.linspace(onset,off,segment.size,dtype=segment.dtype)
-        return segment
 
 
     def distribution_draw(self, type: str):
