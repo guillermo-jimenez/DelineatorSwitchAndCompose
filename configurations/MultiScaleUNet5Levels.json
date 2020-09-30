@@ -16,7 +16,7 @@
         "N": 2048
     },
     "loader": {
-        "batch_size": 256,
+        "batch_size": 128,
         "num_workers": 4,
         "pin_memory": true
     },
@@ -92,24 +92,30 @@
             ["encoder_lvl4", "encoder_avgpool4"],
             ["encoder_avgpool4", "encoder_lvl5"],
             ["encoder_lvl5", "decoder_upsample5"],
+            ["encoder_lvl5", "decoder_upsample5_1"],
             ["decoder_upsample5", ["decoder_upsample5","encoder_lvl4"]],
             ["encoder_lvl4", ["decoder_upsample5","encoder_lvl4"]],
             [["decoder_upsample5","encoder_lvl4"],"decoder_concat4"],
             ["decoder_concat4", "decoder_lvl4"],
             ["decoder_lvl4", "decoder_upsample4"],
+            ["decoder_lvl4", "decoder_upsample4_1"],
             ["decoder_upsample4", ["decoder_upsample4","encoder_lvl3"]],
             ["encoder_lvl3", ["decoder_upsample4","encoder_lvl3"]],
             [["decoder_upsample4","encoder_lvl3"],"decoder_concat3"],
             ["decoder_concat3", "decoder_lvl3"],
             ["decoder_lvl3", "decoder_upsample3"],
+            ["decoder_lvl3", "decoder_upsample3_1"],
             ["decoder_upsample3", ["decoder_upsample3","encoder_lvl2"]],
             ["encoder_lvl2", ["decoder_upsample3","encoder_lvl2"]],
             [["decoder_upsample3","encoder_lvl2"],"decoder_concat2"],
             ["decoder_concat2", "decoder_lvl2"],
             ["decoder_lvl2", "decoder_upsample2"],
-            ["decoder_upsample2", ["decoder_upsample2","encoder_lvl1"]],
-            ["encoder_lvl1", ["decoder_upsample2","encoder_lvl1"]],
-            [["decoder_upsample2","encoder_lvl1"],"decoder_concat1"],
+            ["decoder_upsample5_1", ["decoder_upsample5_1","decoder_upsample4_1","decoder_upsample3_1","decoder_upsample2","encoder_lvl1"]],
+            ["decoder_upsample4_1", ["decoder_upsample5_1","decoder_upsample4_1","decoder_upsample3_1","decoder_upsample2","encoder_lvl1"]],
+            ["decoder_upsample3_1", ["decoder_upsample5_1","decoder_upsample4_1","decoder_upsample3_1","decoder_upsample2","encoder_lvl1"]],
+            ["decoder_upsample2",   ["decoder_upsample5_1","decoder_upsample4_1","decoder_upsample3_1","decoder_upsample2","encoder_lvl1"]],
+            ["encoder_lvl1",        ["decoder_upsample5_1","decoder_upsample4_1","decoder_upsample3_1","decoder_upsample2","encoder_lvl1"]],
+            [["decoder_upsample5_1","decoder_upsample4_1","decoder_upsample3_1","decoder_upsample2","encoder_lvl1"],"decoder_concat1"],
             ["decoder_concat1", "decoder_lvl1"],
             ["decoder_lvl1", "sigmoid"]
         ],
@@ -424,6 +430,27 @@
                 }
             },
             {
+                "id": "decoder_upsample5_1",
+                "class": "Upsample",
+                "arguments": {
+                    "scale_factor": 16
+                }
+            },
+            {
+                "id": "decoder_upsample4_1",
+                "class": "Upsample",
+                "arguments": {
+                    "scale_factor": 8
+                }
+            },
+            {
+                "id": "decoder_upsample3_1",
+                "class": "Upsample",
+                "arguments": {
+                    "scale_factor": 4
+                }
+            },
+            {
                 "id": "decoder_upsample2",
                 "class": "Upsample",
                 "arguments": {
@@ -442,7 +469,7 @@
                 },
                 "arguments": {
                     "channels": [
-                        48,
+                        496,
                         16,
                         16,
                         3

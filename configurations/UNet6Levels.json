@@ -91,7 +91,14 @@
             ["encoder_avgpool3", "encoder_lvl4"],
             ["encoder_lvl4", "encoder_avgpool4"],
             ["encoder_avgpool4", "encoder_lvl5"],
-            ["encoder_lvl5", "decoder_upsample5"],
+            ["encoder_lvl5", "encoder_avgpool5"],
+            ["encoder_avgpool5", "encoder_lvl6"],
+            ["encoder_lvl6", "decoder_upsample6"],
+            ["decoder_upsample6", ["decoder_upsample6","encoder_lvl5"]],
+            ["encoder_lvl5", ["decoder_upsample6","encoder_lvl5"]],
+            [["decoder_upsample6","encoder_lvl5"],"decoder_concat5"],
+            ["decoder_concat5", "decoder_lvl5"],
+            ["decoder_lvl5", "decoder_upsample5"],
             ["decoder_upsample5", ["decoder_upsample5","encoder_lvl4"]],
             ["encoder_lvl4", ["decoder_upsample5","encoder_lvl4"]],
             [["decoder_upsample5","encoder_lvl4"],"decoder_concat4"],
@@ -296,6 +303,86 @@
                         }
                     ]
                 }
+            },
+            {
+                "id": "encoder_avgpool5",
+                "class": "AvgPool1d",
+                "arguments": {
+                    "kernel_size": 2
+                }
+            },
+            {
+                "id": "encoder_lvl6",
+                "class": "CNN",
+                "operation": {
+                    "class": "SeparableConv1d"
+                },
+                "arguments": {
+                    "channels": [
+                        256,
+                        512,
+                        512
+                    ],
+                    "regularization": [
+                        {
+                            "class": "LeakyReLU"
+                        },
+                        {
+                            "class": "BatchNorm1d",
+                            "arguments": {
+                                "num_features": "update"
+                            }
+                        },
+                        {
+                            "class": "Dropout1d",
+                            "arguments": {
+                                "p": 0.25
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "decoder_lvl5",
+                "class": "CNN",
+                "operation": {
+                    "class": "SeparableConv1d"
+                },
+                "arguments": {
+                    "channels": [
+                        768,
+                        256,
+                        256
+                    ],
+                    "regularization": [
+                        {
+                            "class": "LeakyReLU"
+                        },
+                        {
+                            "class": "BatchNorm1d",
+                            "arguments": {
+                                "num_features": "update"
+                            }
+                        },
+                        {
+                            "class": "Dropout1d",
+                            "arguments": {
+                                "p": 0.25
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "decoder_upsample6",
+                "class": "Upsample",
+                "arguments": {
+                    "scale_factor": 2
+                }
+            },
+            {
+                "id": "decoder_concat5",
+                "class": "Concatenate"
             },
             {
                 "id": "decoder_upsample5",
