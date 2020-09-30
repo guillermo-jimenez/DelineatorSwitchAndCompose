@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, List
+from typing import Callable, Tuple, List, Iterable
 import warnings
 import torch
 import torch.utils
@@ -13,18 +13,22 @@ import utils.signal
 import utils.data
 import utils.data.augmentation
 
+def sigmoid(x: float or Iterable) -> float or np.ndarray:
+    return 1/(1 + np.exp(-x))
+
+
 class Dataset(torch.utils.data.Dataset):
     '''Generates data for PyTorch'''
 
     def __init__(self, P, QRS, T, PQ, ST, TP, 
                  Pdistribution, QRSdistribution, Tdistribution, 
                  PQdistribution, STdistribution, TPdistribution, 
-                 length = 32768, N = 2048, noise = 0.005, proba_no_P = 0.25,
+                 length = 32768, N = 2048, noise = 0.005, proba_no_P = 0.1,
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.2,
-                 proba_elevation = 0.2, elevation_range = 0.15,
+                 proba_elevation = 0.2, elevation_range = 0.01,
                  proba_interpolation = 0.2, proba_merge_TP = 0.1,
-                 proba_merge_PQ = 0.05, proba_merge_ST = 0.15,
+                 proba_merge_PQ = 0.0, proba_merge_ST = 0.15,
                  proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
                  proba_TV = 0.05, proba_AF = 0.05, proba_ectopics = 0.1, 
                  ectopic_amplitude_threshold = 0.1, apply_smoothing = True,
@@ -33,9 +37,11 @@ class Dataset(torch.utils.data.Dataset):
                  baseline_noise_scale = 0.01, baseline_smoothing_window = 51, 
                  joint_smoothing_window = 5, convolution_ptg = 0.25,
                  amplitude_std = 0.25, interp_std = 0.25, 
-                 QRS_ampl_low_thres = 0.1, QRS_ampl_high_thres = 1.15,
+                 ectopic_QRS_size = 40,
+                 QRS_ampl_low_thres = 0.05, QRS_ampl_high_thres = 1.15,
                  scaling_metric: Callable = utils.signal.amplitude,
-                 labels_as_masks = True, return_beats: bool = False):
+                 labels_as_masks = True, return_beats: bool = False,
+                 relative_amplitude = True):
         #### Segments ####
         # P wave
         self.P = P
@@ -84,11 +90,13 @@ class Dataset(torch.utils.data.Dataset):
         self.mixup_alpha = mixup_alpha
         self.mixup_beta = mixup_beta
         self.elevation_range = elevation_range
+        self.ectopic_QRS_size = ectopic_QRS_size
         self.tachy_maxlen = tachy_maxlen
         self.convolution_ptg = convolution_ptg
         self.ectopic_amplitude_threshold = ectopic_amplitude_threshold
         self.apply_smoothing = apply_smoothing
         self.return_beats = return_beats
+        self.relative_amplitude = relative_amplitude
         self.scaling_metric = scaling_metric
         self.QRS_ampl_low_thres = QRS_ampl_low_thres
         self.QRS_ampl_high_thres = QRS_ampl_high_thres
@@ -213,7 +221,6 @@ class Dataset(torch.utils.data.Dataset):
         IDs['merge_PQ'] = np.random.rand(self.cycles) < self.proba_merge_PQ
         IDs['merge_ST'] = np.random.rand(self.cycles) < self.proba_merge_ST
         
-        
         ##### Generate identifiers #####
         if dict_globals['same_morph']:
             IDs[  'P'] = np.array([np.random.randint(len(  self.P))]*self.cycles)
@@ -251,10 +258,22 @@ class Dataset(torch.utils.data.Dataset):
         IDs[  'T'][filt_QRS                                                                                                                ] = -1
         IDs[ 'TP'][                                                                                                         IDs['merge_TP']] = -1
 
+        # Retrieve QRS sizes
+        IDs['QRS_sizes'] = np.array([self.QRS[self.QRSkeys[id]].size for id in IDs['QRS']])
+
+        # Filter out P waves of too wide segments
+        IDs['P'][IDs['QRS_sizes'] >= self.ectopic_QRS_size] = -1 # Rule of thumb
+        IDs['ectopics'][IDs['QRS_sizes'] >= self.ectopic_QRS_size] = True # Rule of thumb
+
+        # Retrieve P and T sizes
+        IDs['P_sizes'] = np.array([self.P[self.Pkeys[id]].size for id in IDs['P']])
+        IDs['T_sizes'] = np.array([self.T[self.Tkeys[id]].size for id in IDs['T']])
+
         # Modify mergers
-        IDs['merge_PQ'][(IDs['P'] == -1) | (IDs['QRS'] == -1)                   ] = False
-        IDs['merge_ST'][                   (IDs['QRS'] == -1) | (IDs['T'] == -1)] = False
-        IDs['merge_TP'][(IDs['P'] == -1)                      | (IDs['T'] == -1)] = False
+        IDs['merge_ST'] = IDs['merge_ST'] | (np.random.rand(self.cycles) < IDs['ectopics']*0.25) # Ectopics
+        IDs['merge_PQ'][(IDs['P'] == -1)  | (IDs['QRS'] == -1)                   ] = False
+        IDs['merge_ST'][                    (IDs['QRS'] == -1) | (IDs['T'] == -1)] = False
+        IDs['merge_TP'][(IDs['P'] == -1)                       | (IDs['T'] == -1)] = False
 
         return IDs
 
@@ -268,6 +287,20 @@ class Dataset(torch.utils.data.Dataset):
             'T'   : self.Tdistribution.rvs(self.cycles),
             'TP'  : self.TPdistribution.rvs(self.cycles),
         }
+
+        # P wave in case small amplitudes
+        filter = (amplitudes['P'] < 0.06) | (amplitudes['P'] > 0.3)
+        while np.any(filter):
+            # Retrieve generous sample, faster than sampling twice
+            new_amplitudes = self.Pdistribution.rvs(self.cycles)
+            new_amplitudes = new_amplitudes[(new_amplitudes >= 0.06) & (new_amplitudes <= 0.3)]
+            # Pad/crop the new amplitudes
+            pad_len = filter.sum()-new_amplitudes.size
+            if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
+            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
+            # Input into the amplitudes vector
+            amplitudes['P'][filter] = new_amplitudes
+            filter = (amplitudes['P'] < 0.06) | (amplitudes['P'] > 0.3)
 
         # QRS in case low/high voltage
         filter = (amplitudes['QRS'] < self.QRS_ampl_low_thres) | (amplitudes['QRS'] > self.QRS_ampl_high_thres)
@@ -299,18 +332,18 @@ class Dataset(torch.utils.data.Dataset):
             filter = (amplitudes['T'] < self.ectopic_amplitude_threshold) & dict_globals['IDs']['ectopics']
 
         # T wave in case large amplitudes
-        filter = amplitudes['T'] > 0.75
+        filter = (amplitudes['T'] < 0.2) | (amplitudes['T'] > 0.6)
         while np.any(filter):
             # Retrieve generous sample, faster than sampling twice
             new_amplitudes = self.Tdistribution.rvs(self.cycles)
-            new_amplitudes = new_amplitudes[new_amplitudes >= self.ectopic_amplitude_threshold]
+            new_amplitudes = new_amplitudes[(new_amplitudes >= 0.2) & (new_amplitudes <= 0.6)]
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
             if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
             elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
             # Input into the amplitudes vector
             amplitudes['T'][filter] = new_amplitudes
-            filter = amplitudes['T'] > 0.75
+            filter = (amplitudes['T'] < 0.2) | (amplitudes['T'] > 0.6)
 
         ###### CONDITION-SPECIFIC AMPLITUDES #####
         if dict_globals['same_morph']: 
@@ -318,9 +351,22 @@ class Dataset(torch.utils.data.Dataset):
             amplitudes['QRS'] = amplitudes['QRS'][0]*(np.random.rand(self.cycles)*0.5+0.75) # Rule of thumb
             amplitudes[  'T'] = amplitudes[  'T'][0]*(np.random.rand(self.cycles)*0.5+0.75) # Rule of thumb
 
+        # Apply correction factor depending on P, QRS and T widths
+        amplitudes['P']   *= (1 + sigmoid( (dict_globals['IDs'][  'P_sizes'] -                    35)*0.25)) # Rule of thumb
+        amplitudes['P']   *= (1 + sigmoid(-(dict_globals['IDs'][  'P_sizes'] -                    15)*0.25)) # Rule of thumb
+        amplitudes['QRS'] *= (1 + sigmoid( (dict_globals['IDs']['QRS_sizes'] - self.ectopic_QRS_size)*0.25)) # Rule of thumb
+        amplitudes['T']   *= (1 + sigmoid( (dict_globals['IDs'][  'T_sizes'] -                    55)*0.25)) # Rule of thumb
+
+        # Clip amplitudes
+        amplitudes['P']  = amplitudes['P'].clip(min=0.06, max=0.3)
+        amplitudes['PQ'] = amplitudes['P'].clip(          max=0.075)
+        amplitudes['ST'] = amplitudes['T'].clip(          max=0.075)
+        amplitudes['T']  = amplitudes['T'].clip(min=0.2,  max=0.6)
+        amplitudes['TP'] = amplitudes['T'].clip(          max=0.075)
+
         # Beef up the ectopic beats
-        amplitudes['QRS'][dict_globals['IDs']['ectopics']] *= 2 # Rule of thumb
-        amplitudes['T'][dict_globals['IDs']['ectopics']]   *= 2 # Rule of thumb
+        # amplitudes['QRS'][dict_globals['IDs']['ectopics'] | (dict_globals['IDs']['QRS_sizes'] < self.ectopic_QRS_size)] *= 1.25 # Rule of thumb
+        # amplitudes['T'][dict_globals['IDs']['ectopics']]   *= 2 # Rule of thumb
 
         return amplitudes
 
@@ -606,11 +652,14 @@ class Dataset(torch.utils.data.Dataset):
             amplitude = qrs_amplitude
         else:
             # Draw from distribution
-            amplitude = qrs_amplitude*dict_globals['amplitudes'][type][index] # Apply amplitude on segment
+            amplitude = dict_globals['amplitudes'][type][index] # Apply amplitude on segment
 
-            # Hotfix: conditional to range of QRS amplitude
-            if   qrs_amplitude < 0.2: amplitude *= 2.5
-            elif qrs_amplitude < 0.4: amplitude *= 1.5
+            # If relative amplitude is in place:
+            if self.relative_amplitude:
+                amplitude *= qrs_amplitude
+            #     # Hotfix: conditional to range of QRS amplitude
+            #     if   qrs_amplitude < 0.2: amplitude *= 2.5
+            #     elif qrs_amplitude < 0.4: amplitude *= 1.5
 
         # Apply amplitude modulation to segment
         segment *= amplitude
@@ -654,7 +703,7 @@ class Dataset(torch.utils.data.Dataset):
         #     sign_elevation = dict_globals['sign_t']
         # else:
         #     sign_elevation = -dict_globals['sign_t']
-        segment = self.interpolate(segment,np.random.randint(30,90))
+        segment = self.interpolate(segment,np.random.randint(30,70))
         # amplitude = np.random.rand()-0.5
         # segment = self.segment_elevation(segment,0.5,sign_elevation)
         return segment
