@@ -33,7 +33,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_TV = 0.05, proba_AF = 0.05, proba_ectopics = 0.1, 
                  ectopic_amplitude_threshold = 0.1, apply_smoothing = True,
                  proba_flatline = 0.05, proba_tachy = 0.05, 
-                 proba_sinus_arrest = 0.1,
+                 proba_sinus_arrest = 0.1, proba_U_wave = 0.05,
                  tachy_maxlen = 15, proba_baseline_wander = 0.5, 
                  baseline_noise_scale = 0.01, baseline_smoothing_window = 51, 
                  joint_smoothing_window = 5, convolution_ptg = 0.25,
@@ -114,6 +114,7 @@ class Dataset(torch.utils.data.Dataset):
         self.proba_merge_PQ = proba_merge_PQ
         self.proba_merge_ST = proba_merge_ST
         self.proba_same_morph = proba_same_morph
+        self.proba_U_wave = proba_U_wave
         self.proba_elevation = proba_elevation
         self.proba_flatline = proba_flatline
         self.proba_sinus_arrest = proba_sinus_arrest
@@ -192,6 +193,7 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals['has_tachy'] = np.random.rand() < self.proba_tachy
         dict_globals['has_baseline_wander'] = np.random.rand() < self.proba_baseline_wander
         dict_globals['has_sinus_arrest'] = np.random.rand() < self.proba_sinus_arrest
+        dict_globals['has_U_wave'] = np.random.rand() < self.proba_U_wave
         if dict_globals['has_sinus_arrest']:
             dict_globals['arrest_location'] = np.random.randint(2,6)
             dict_globals['arrest_duration'] = np.random.randint(4)
@@ -202,7 +204,7 @@ class Dataset(torch.utils.data.Dataset):
        
         # Set hyperparameters
         dict_globals['index_onset'] = np.random.randint(50)
-        dict_globals['begining_wave'] = np.random.randint(6)
+        dict_globals['begining_wave'] = np.random.randint(7)
         dict_globals['global_amplitude'] = 1.+(np.random.randn()*self.amplitude_std)
         dict_globals['interp_length'] = max([1.+(np.random.randn()*self.interp_std),0.5])
         if dict_globals['has_flatline']: dict_globals['flatline_length'] = np.random.randint(1,self.N//np.random.randint(2,5))
@@ -228,12 +230,12 @@ class Dataset(torch.utils.data.Dataset):
         
         ##### Generate identifiers #####
         if dict_globals['same_morph']:
-            IDs[  'P'] = np.array([np.random.randint(len(  self.P))]*self.cycles)
-            IDs[ 'PQ'] = np.array([np.random.randint(len( self.PQ))]*self.cycles)
-            IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*self.cycles)
-            IDs[ 'ST'] = np.array([np.random.randint(len( self.ST))]*self.cycles)
-            IDs[  'T'] = np.array([np.random.randint(len(  self.T))]*self.cycles)
-            IDs[ 'TP'] = np.array([np.random.randint(len( self.TP))]*self.cycles)
+            IDs[  'P'] = np.array([np.random.randint(len(  self.P))]*self.cycles, dtype=int)
+            IDs[ 'PQ'] = np.array([np.random.randint(len( self.PQ))]*self.cycles, dtype=int)
+            IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*self.cycles, dtype=int)
+            IDs[ 'ST'] = np.array([np.random.randint(len( self.ST))]*self.cycles, dtype=int)
+            IDs[  'T'] = np.array([np.random.randint(len(  self.T))]*self.cycles, dtype=int)
+            IDs[ 'TP'] = np.array([np.random.randint(len( self.TP))]*self.cycles, dtype=int)
 
             # If same morph, use different morphologies for the ectopic beats (for QRS and T waves)
             IDs['QRS'][IDs['ectopics']] = np.array([np.random.randint(len(self.QRS))]*IDs['ectopics'].sum())
@@ -291,6 +293,21 @@ class Dataset(torch.utils.data.Dataset):
         IDs['merge_ST'][                    (IDs['QRS'] == -1) | (IDs['T'] == -1)] = False
         IDs['merge_TP'][(IDs['P'] == -1)                       | (IDs['T'] == -1)] = False
 
+        # Generate U waves
+        IDs['U']      = np.full((self.cycles,),-1,dtype=int)
+        if dict_globals['has_U_wave']:
+            # Choose randomly U's morph
+            filt_U = np.random.rand(self.cycles) < 0.25
+            IDs['U'][filt_U] = IDs['T'][filt_U]
+
+            # More probable U wave on ectopics
+            filt_ectopics = np.random.rand(self.cycles) <= IDs['ectopics']*0.5
+            IDs['U'][filt_ectopics] = IDs['T'][filt_ectopics]
+
+            # Generate U's sign
+            if dict_globals['same_morph']: IDs['U_sign'] = np.array([np.random.choice([-1,1])]*self.cycles, dtype=int)
+            else:                          IDs['U_sign'] = np.random.choice([-1,1], size=self.cycles)
+            
         return IDs
 
 
@@ -380,22 +397,28 @@ class Dataset(torch.utils.data.Dataset):
         amplitudes['T']  = amplitudes['T'].clip(min=0.2,  max=0.6)
         amplitudes['TP'] = amplitudes['T'].clip(          max=0.075)
 
+        # Generate U wave's amplitudes
+        if dict_globals['has_U_wave']: amplitudes['U'] = amplitudes['T']*(np.random.rand(self.cycles)*0.1+0.05)
+
         return amplitudes
 
 
     def generate_elevations(self, dict_globals: dict):
-        # Generate elevation template
-        elevation_template = self.elevation_range*np.random.rand(self.cycles,6) - self.elevation_range/2
-
-        # Refine template's results - zero if the ID is zero
+        # Check active waves
         active = np.vstack((dict_globals['IDs']['P'],   dict_globals['IDs']['PQ'],
                             dict_globals['IDs']['QRS'], dict_globals['IDs']['ST'],
-                            dict_globals['IDs']['T'],   dict_globals['IDs']['TP'])).T != -1
+                            dict_globals['IDs']['T'],   dict_globals['IDs']['U'],
+                            dict_globals['IDs']['TP'])).T != -1
+
+        # Generate elevation template
+        elevation_template = self.elevation_range*np.random.rand(self.cycles,active.shape[1]) - self.elevation_range/2
+
+        # Refine template's results - zero if the ID is zero
         active_rows = np.any(active,axis=-1)
         elevation_template[np.logical_not(active)] = 0
 
         # Define correction factor for number of non-negative amplitudes
-        correction_factor = np.repeat(elevation_template.sum(-1,keepdims=True),6,-1)
+        correction_factor = np.repeat(elevation_template.sum(-1,keepdims=True),active.shape[1],-1)
         correction_factor[active_rows] /= active[active_rows].sum(-1,keepdims=True)
 
         # Define % elevation per active segment
@@ -415,7 +438,7 @@ class Dataset(torch.utils.data.Dataset):
         cycle = {}
 
         ##### Generate all waves #####
-        for i,type in enumerate(['P','PQ','QRS','ST','T','TP']):
+        for i,type in enumerate(['P','PQ','QRS','ST','T','U','TP']):
             # Crop part of the first cycle
             if (index == 0) and (i < dict_globals['begining_wave']): 
                 cycle[type] = None
@@ -430,9 +453,11 @@ class Dataset(torch.utils.data.Dataset):
             cycle['QRS'], cycle[  'T'] = self.segments_convolve(cycle['QRS'], cycle[  'T'], reverse='last',  sign_relation='equal')
         if (index != 0) and (dict_globals['IDs']['merge_TP'][index]):
             cycle[  'T'], cycle[  'P'] = self.segments_convolve(cycle[  'T'], cycle[  'P'], reverse='last',  sign_relation='different')
+        if (index != 0) and (dict_globals['IDs']['U'][index] != -1):
+            cycle[  'T'], cycle[  'U'] = self.segments_convolve(cycle[  'T'], dict_globals['IDs']['U_sign'][index]*cycle['U'], reverse=None)
 
         ##### Add valid cycle elements to beats #####
-        for i,type in enumerate(['P','PQ','QRS','ST','T','TP']):
+        for i,type in enumerate(['P','PQ','QRS','ST','T','U','TP']):
             if cycle[type] is not None:
                 # Add cycle[type] to output
                 beats.append(cycle[type])
@@ -471,6 +496,7 @@ class Dataset(torch.utils.data.Dataset):
         if type == 'QRS': return self.QRSdistribution
         if type ==  'ST': return self.STdistribution
         if type ==   'T': return self.Tdistribution
+        if type ==   'U': return self.Tdistribution
         if type ==  'TP': return self.TPdistribution
 
 
@@ -480,6 +506,7 @@ class Dataset(torch.utils.data.Dataset):
         if type == 'QRS': return self.QRSkeys
         if type ==  'ST': return self.STkeys
         if type ==   'T': return self.Tkeys
+        if type ==   'U': return self.Tkeys
         if type ==  'TP': return self.TPkeys
 
 
@@ -489,6 +516,7 @@ class Dataset(torch.utils.data.Dataset):
         if type == 'QRS': return self.QRS
         if type ==  'ST': return self.ST
         if type ==   'T': return self.T
+        if type ==   'U': return self.T
         if type ==  'TP': return self.TP
 
 
@@ -498,6 +526,7 @@ class Dataset(torch.utils.data.Dataset):
         if type == 'QRS': return self.QRS_post_operation
         if type ==  'ST': return self.ST_post_operation
         if type ==   'T': return self.T_post_operation
+        if type ==   'U': return self.T_post_operation
         if type ==  'TP': return self.TP_post_operation
     
 
