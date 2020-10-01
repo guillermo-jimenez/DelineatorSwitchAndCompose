@@ -377,10 +377,6 @@ class Dataset(torch.utils.data.Dataset):
         amplitudes['T']  = amplitudes['T'].clip(min=0.2,  max=0.6)
         amplitudes['TP'] = amplitudes['T'].clip(          max=0.075)
 
-        # Beef up the ectopic beats
-        # amplitudes['QRS'][dict_globals['IDs']['ectopics'] | (dict_globals['IDs']['QRS_sizes'] < self.ectopic_QRS_size)] *= 1.25 # Rule of thumb
-        # amplitudes['T'][dict_globals['IDs']['ectopics']]   *= 2 # Rule of thumb
-
         return amplitudes
 
 
@@ -659,10 +655,6 @@ class Dataset(torch.utils.data.Dataset):
             new_size = max(int((segment.size*norm.rvs(1,0.25).clip(min=0.25))),1)
             segment = self.interpolate(segment, new_size)
 
-        # # Apply right extrema elevation/depression
-        # if np.random.rand() < self.proba_elevation:
-        #     segment = self.segment_elevation(segment, dict_globals['amplitudes'][type][index]/10)
-        
         return segment
 
 
@@ -676,9 +668,6 @@ class Dataset(torch.utils.data.Dataset):
             # If relative amplitude is in place:
             if self.relative_amplitude:
                 amplitude *= qrs_amplitude
-            #     # Hotfix: conditional to range of QRS amplitude
-            #     if   qrs_amplitude < 0.2: amplitude *= 2.5
-            #     elif qrs_amplitude < 0.4: amplitude *= 1.5
 
         # Apply amplitude modulation to segment
         segment *= amplitude
@@ -687,9 +676,13 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def segment_mixup(self, segment1: np.ndarray, segment2: np.ndarray):
-        if segment1.size != segment2.size:
-            segment2 = self.interpolate(segment2, segment1.size)
+        # If both segments are different in size, interpolate second segment
+        if segment1.size != segment2.size: segment2 = self.interpolate(segment2, segment1.size)
+
+        # Generate a mixup segment
         (mixup_segment,_) = utils.data.augmentation.mixup(segment1,segment2,self.mixup_alpha,self.mixup_beta)
+
+        # Scale to be in [-1,1] range
         mixup_segment = utils.data.ball_scaling(mixup_segment,metric=self.scaling_metric)
 
         return mixup_segment
@@ -698,10 +691,13 @@ class Dataset(torch.utils.data.Dataset):
     def segment_elevation(self, segment: np.ndarray, amplitude: float, randomize: bool = False):
         # Randomize amplitude
         if randomize: amplitude = np.random.rand()*amplitude
+
         # Copy segment
         segment = np.copy(segment)
+
         # Apply elevation to segment (linear so far)
         segment += np.linspace(0,amplitude,segment.size)
+
         return segment
 
 
@@ -715,16 +711,14 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def QRS_ectopic(self, segment: np.ndarray, dict_globals: dict, index: int):
+        # Compute zero crossings of QRS wave
         crossings = utils.signal.zero_crossings(segment)[0]
+
+        # Compute sign of T wave
         dict_globals['sign_t'] = -np.sign(utils.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
-        # a_max = np.argmax(np.abs(segment))
-        # if (crossings[-2] <= a_max) and (crossings[-1] >= a_max):
-        #     sign_elevation = dict_globals['sign_t']
-        # else:
-        #     sign_elevation = -dict_globals['sign_t']
+
+        # Interpolate segment, widen it
         segment = self.interpolate(segment,np.random.randint(30,70))
-        # amplitude = np.random.rand()-0.5
-        # segment = self.segment_elevation(segment,0.5,sign_elevation)
         return segment
 
 
@@ -739,12 +733,6 @@ class Dataset(torch.utils.data.Dataset):
 
             # Delete for future overwriting
             dict_globals.pop('sign_t') # Delete from globals for next ectopic
-
-            # Apply elevation
-            # segment = self.segment_elevation(segment,0.5,-sign_t)
-
-        # # Enlarge segment's amplitude
-        # segment *= 2
 
         return segment
 
@@ -782,7 +770,6 @@ class Dataset(torch.utils.data.Dataset):
         composite[-segment2.size:] += segment2
         
         # Compute cropping filter
-        # normalization_factor = (np.abs(segment1).max()+np.abs(segment1).max())/2
         factor1 = reference[:segment1.size]
         factor2 = composite[:segment1.size]
         normalization_factor = utils.signal.amplitude(factor1)
