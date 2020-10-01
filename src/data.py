@@ -33,12 +33,13 @@ class Dataset(torch.utils.data.Dataset):
                  proba_TV = 0.05, proba_AF = 0.05, proba_ectopics = 0.1, 
                  ectopic_amplitude_threshold = 0.1, apply_smoothing = True,
                  proba_flatline = 0.05, proba_tachy = 0.05, 
-                 tachy_maxlen = 30, proba_baseline_wander = 0.5, 
+                 proba_sinus_arrest = 0.1,
+                 tachy_maxlen = 15, proba_baseline_wander = 0.5, 
                  baseline_noise_scale = 0.01, baseline_smoothing_window = 51, 
                  joint_smoothing_window = 5, convolution_ptg = 0.25,
                  amplitude_std = 0.25, interp_std = 0.25, 
                  ectopic_QRS_size = 40,
-                 QRS_ampl_low_thres = 0.05, QRS_ampl_high_thres = 1.15,
+                 QRS_ampl_low_thres = 0.1, QRS_ampl_high_thres = 1.15,
                  scaling_metric: Callable = utils.signal.amplitude,
                  labels_as_masks = True, return_beats: bool = False,
                  relative_amplitude = True):
@@ -115,6 +116,7 @@ class Dataset(torch.utils.data.Dataset):
         self.proba_same_morph = proba_same_morph
         self.proba_elevation = proba_elevation
         self.proba_flatline = proba_flatline
+        self.proba_sinus_arrest = proba_sinus_arrest
         self.proba_interpolation = proba_interpolation
         self.proba_mixup = proba_mixup
         self.proba_tachy = proba_tachy
@@ -189,12 +191,20 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals['has_AF'] = np.random.rand() < self.proba_AF
         dict_globals['has_tachy'] = np.random.rand() < self.proba_tachy
         dict_globals['has_baseline_wander'] = np.random.rand() < self.proba_baseline_wander
-        # dict_globals['has_elevations'] = np.random.rand() < self.proba_elevation
+        dict_globals['has_sinus_arrest'] = np.random.rand() < self.proba_sinus_arrest
+        if dict_globals['has_sinus_arrest']:
+            dict_globals['arrest_location'] = np.random.randint(2,6)
+            dict_globals['arrest_duration'] = np.random.randint(4)
         
         # Logical if has TV
         if dict_globals['has_TV']: dict_globals['has_tachy'] = True
         if dict_globals['has_TV']: dict_globals['same_morph'] = True
        
+        # Define tachy lens if has tachy
+        if dict_globals['has_tachy']:
+            base_len = np.random.randint(3,self.tachy_maxlen)
+            dict_globals['tachy_len'] = (np.random.randint(-3,3,size=self.cycles)+base_len).clip(min=0)
+
         # Set hyperparameters
         dict_globals['index_onset'] = np.random.randint(50)
         dict_globals['begining_wave'] = np.random.randint(6)
@@ -241,9 +251,12 @@ class Dataset(torch.utils.data.Dataset):
             IDs[  'T'] = np.random.randint(len(  self.T), size=self.cycles)
             IDs[ 'TP'] = np.random.randint(len( self.TP), size=self.cycles)
 
-        # Re-generate P wave if has AF
+        # Condition-specific modifiers
         if dict_globals['has_AF']: 
             IDs['P'] = np.repeat(np.random.randint(len(self.P)),self.cycles)
+        filt_arrest = np.zeros((self.cycles,),dtype=bool)
+        if dict_globals['has_sinus_arrest']:
+            filt_arrest[dict_globals['arrest_location']:dict_globals['arrest_location']+dict_globals['arrest_duration']] = True
 
 
         ##### Exceptions according to different conditions #####
@@ -251,12 +264,12 @@ class Dataset(torch.utils.data.Dataset):
         filt_QRS = np.random.rand(self.cycles) < self.proba_no_QRS
 
         # Modify identifiers
-        IDs[  'P'][           (np.random.rand(self.cycles) < self.proba_no_P)  | dict_globals['has_TV'] | IDs['ectopics']                  ] = -1
-        IDs[ 'PQ'][filt_QRS | (np.random.rand(self.cycles) < self.proba_no_PQ) | dict_globals['has_TV']                   | IDs['merge_PQ']] = -1
-        IDs['QRS'][filt_QRS                                                                                                                ] = -1
-        IDs[ 'ST'][filt_QRS | (np.random.rand(self.cycles) < self.proba_no_ST)                          | IDs['ectopics'] | IDs['merge_ST']] = -1
-        IDs[  'T'][filt_QRS                                                                                                                ] = -1
-        IDs[ 'TP'][                                                                                                         IDs['merge_TP']] = -1
+        IDs[  'P'][filt_arrest |            (np.random.rand(self.cycles) < self.proba_no_P)  | dict_globals['has_TV'] | IDs['ectopics']                  ] = -1
+        IDs[ 'PQ'][filt_arrest | filt_QRS | (np.random.rand(self.cycles) < self.proba_no_PQ) | dict_globals['has_TV']                   | IDs['merge_PQ']] = -1
+        IDs['QRS'][filt_arrest | filt_QRS                                                                                                                ] = -1
+        IDs[ 'ST'][filt_arrest | filt_QRS | (np.random.rand(self.cycles) < self.proba_no_ST)                          | IDs['ectopics'] | IDs['merge_ST']] = -1
+        IDs[  'T'][filt_arrest | filt_QRS                                                                                                                ] = -1
+        IDs[ 'TP'][                                                                                                                       IDs['merge_TP']] = -1
 
         # Retrieve QRS sizes
         IDs['QRS_sizes'] = np.array([self.QRS[self.QRSkeys[id]].size for id in IDs['QRS']])
@@ -524,6 +537,9 @@ class Dataset(torch.utils.data.Dataset):
         pAF = self.get_segment('P')
         N = signal.size
 
+        # Interpolate to make wider
+        pAF = self.interpolate(pAF, np.random.randint(30,60))
+
         # Mirror on negative
         sign = np.random.choice([-1,1])
         template = [sign*pAF[:-1],-sign*pAF[:-1]]
@@ -547,8 +563,10 @@ class Dataset(torch.utils.data.Dataset):
         template = self.smooth(template,pAF.size//2)
 
         # Sample amplitude > 0.3 (to make any noticeable difference on the signal)
-        amplitude = self.Pdistribution.rvs()
-        while (amplitude < 0.3) and (amplitude > 0.6): amplitude = self.Pdistribution.rvs()
+        amplitude = self.Pdistribution.rvs(self.cycles)
+        while not np.any((amplitude >= 0.35) & (amplitude <= 0.7)): 
+            amplitude = self.Pdistribution.rvs(self.cycles)
+        amplitude = amplitude[(amplitude >= 0.35) & (amplitude <= 0.7)][0]
 
         # Apply AF on signal
         signal = signal+template*amplitude
@@ -588,7 +606,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def ST_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         if   dict_globals['has_TV']:    segment = self.random_walk(size=np.random.randint(2,32))
-        elif dict_globals['has_tachy']: segment = self.segment_tachy(segment)
+        elif dict_globals['has_tachy']: segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
         return segment
 
 
@@ -598,7 +616,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def TP_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if dict_globals['has_tachy']:   segment = self.segment_tachy(segment)
+        if dict_globals['has_tachy']:   segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
         return segment
 
 
@@ -612,6 +630,7 @@ class Dataset(torch.utils.data.Dataset):
         segment = self.segment_post_operation(type, segment, dict_globals, index)
 
         # If empty, skip to next
+        if segment is None:   return
         if segment.size == 0: return
 
         # Apply amplitude modulation
@@ -686,12 +705,12 @@ class Dataset(torch.utils.data.Dataset):
         return segment
 
 
-    def segment_tachy(self, segment: np.ndarray):
-        new_segment = segment[:np.random.randint(1,self.tachy_maxlen)]
-        new_segment = utils.signal.on_off_correction(new_segment)
-        if new_segment.ndim == 0:
-            new_segment = new_segment[:,None]
-        # new_segment = utils.data.ball_scaling(new_segment,metric=self.scaling_metric)
+    def segment_tachy(self, segment: np.ndarray, nx: int):
+        new_segment = segment[:nx]
+        if new_segment.size != 0:
+            new_segment = utils.signal.on_off_correction(new_segment)
+            if new_segment.ndim == 0:
+                new_segment = new_segment[:,None]
         return new_segment
 
 
