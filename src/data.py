@@ -200,11 +200,6 @@ class Dataset(torch.utils.data.Dataset):
         if dict_globals['has_TV']: dict_globals['has_tachy'] = True
         if dict_globals['has_TV']: dict_globals['same_morph'] = True
        
-        # Define tachy lens if has tachy
-        if dict_globals['has_tachy']:
-            base_len = np.random.randint(3,self.tachy_maxlen)
-            dict_globals['tachy_len'] = (np.random.randint(-3,3,size=self.cycles)+base_len).clip(min=0)
-
         # Set hyperparameters
         dict_globals['index_onset'] = np.random.randint(50)
         dict_globals['begining_wave'] = np.random.randint(6)
@@ -258,6 +253,14 @@ class Dataset(torch.utils.data.Dataset):
         if dict_globals['has_sinus_arrest']:
             filt_arrest[dict_globals['arrest_location']:dict_globals['arrest_location']+dict_globals['arrest_duration']] = True
 
+        # Define tachy lens if has tachy
+        if dict_globals['has_tachy']:
+            base_len = np.random.randint(3,self.tachy_maxlen)
+            dict_globals['tachy_len'] = (np.random.randint(-3,3,size=self.cycles)+base_len).clip(min=0)
+
+            filt_long_TP = np.random.rand(self.cycles) < IDs['ectopics']*0.90
+            if (not dict_globals['has_TV']):
+                dict_globals['tachy_len'][filt_long_TP] += np.random.randint(60,100,size=filt_long_TP.sum())
 
         ##### Exceptions according to different conditions #####
         # In case QRS is not expressed
@@ -588,6 +591,9 @@ class Dataset(torch.utils.data.Dataset):
 
     ################# SEGMENT-LEVEL FUNCTIONS #################
     def P_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
+        if segment.size < 20:
+            if np.random.rand() < 0.25:
+                segment = self.interpolate(segment, np.random.randint(15,40))
         return segment
 
 
