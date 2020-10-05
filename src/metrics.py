@@ -8,7 +8,7 @@ def dice_score(input: np.ndarray, target: np.ndarray) -> float:
     return 2.*intersection/(union + np.finfo('double').eps)
 
 
-def filter_valid(onset: int, offset: int, validity_on: int = 0, validity_off: int = np.inf):
+def filter_valid(onset: np.ndarray, offset: np.ndarray, validity_on: int = 0, validity_off: int = np.inf):
     validity_on  = np.array( validity_on)[np.newaxis,np.newaxis]
     validity_off = np.array(validity_off)[np.newaxis,np.newaxis]
 
@@ -103,14 +103,14 @@ def compute_metrics(input_onsets: np.ndarray, input_offsets: np.ndarray,
         # If any GT beat has a correspondence to more than one segmented beat, 
         #     the rest of the pairs have to be false positives (Martinez et al.)
         if len(corr[i]) > 1:
-            fp += len(corr[i]) - 1
+            fn += len(corr[i]) - 1
         
         # If any GT beat has no correspondence to any segmented beat, false negative
         if len(corr[i]) == 0:
-            fn += 1
+            fp += 1
             
     # False positives will correspond to those existing in the results that do not correspond to any beat in the GT (the not chosen)
-    fp += len(not_chosen)
+    fn += len(not_chosen)
     
     return tp,fp,fn,dice,onset_error,offset_error
         
