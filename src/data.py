@@ -26,17 +26,16 @@ class Dataset(torch.utils.data.Dataset):
                  length = 32768, N = 2048, proba_no_P = 0.1,
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.25,
-                 proba_elevation = 0.2, 
+                 proba_elevation = 0.2, proba_AV_block = 0.1,
                  proba_interpolation = 0.2, proba_merge_TP = 0.25,
                  proba_merge_PQ = 0.0, proba_merge_ST = 0.15,
                  proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
                  proba_TV = 0.05, proba_AF = 0.05, proba_ectopics = 0.1, 
                  proba_flatline = 0.05, proba_tachy = 0.05, 
                  proba_sinus_arrest = 0.1, proba_U_wave = 0.1,
-                 proba_baseline_wander = 0.5, proba_AV_block = 0.1,
                  ectopic_amplitude_threshold = 0.1, apply_smoothing = True,
-                 tachy_maxlen = 15, elevation_range = 0.25,
-                 baseline_noise_scale = 0.01, baseline_smoothing_window = 51, 
+                 tachy_maxlen = 15, elevation_range = 0.1,
+                 baseline_noise_scale = 0.025, baseline_smoothing_window = 51, 
                  joint_smoothing_window = 5, convolution_ptg = 0.25,
                  amplitude_std = 0.25, interp_std = 0.25, 
                  ectopic_QRS_size = 40,
@@ -81,7 +80,6 @@ class Dataset(torch.utils.data.Dataset):
         self.length = length
         self.N = N
         self.cycles = self.N//32 # Rule of thumb
-        self.proba_baseline_wander = proba_baseline_wander
         self.baseline_smoothing_window = baseline_smoothing_window
         self.baseline_noise_scale = baseline_noise_scale
         self.joint_smoothing_window = joint_smoothing_window
@@ -110,6 +108,7 @@ class Dataset(torch.utils.data.Dataset):
         self.proba_no_ST = proba_no_ST
         self.proba_TV = proba_TV
         self.proba_AF = proba_AF
+        self.proba_AV_block = proba_AV_block
         self.proba_merge_TP = proba_merge_TP
         self.proba_merge_PQ = proba_merge_PQ
         self.proba_merge_ST = proba_merge_ST
@@ -145,12 +144,12 @@ class Dataset(torch.utils.data.Dataset):
             if mark_break: break
 
         ##### Registry-wise post-operations #####
-        # Apply beat elevation/depression
-        beats = self.beats_elevation(beats, dict_globals)
-
         # Concatenate signal and mask
         signal = np.concatenate(beats)
         masks = self.generate_mask(beats, beat_types, mode_bool=self.labels_as_masks) # Still to be done right
+
+        # Apply beat elevation/depression
+        signal = self.signal_elevation(signal, beats, dict_globals)
         
         # Interpolate signal & mask
         int_len = math.ceil(signal.size*dict_globals['interp_length'])
@@ -161,7 +160,7 @@ class Dataset(torch.utils.data.Dataset):
         signal = signal*dict_globals['global_amplitude']
 
         # Apply whole-signal modifications
-        if dict_globals['has_baseline_wander']: signal = self.signal_baseline_wander(signal)
+        signal = self.signal_baseline_wander(signal)
         if dict_globals['has_AF']:              signal = self.signal_AF(signal)
         if dict_globals['has_flatline']:        signal, masks = self.signal_flatline(signal, masks, dict_globals)
         
@@ -187,9 +186,9 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals['has_flatline'] = np.random.rand() < self.proba_flatline
         dict_globals['has_TV'] = np.random.rand() < self.proba_TV
         dict_globals['has_AF'] = np.random.rand() < self.proba_AF
+        dict_globals['has_AV_block'] = np.random.rand() < self.proba_AV_block
         dict_globals['has_tachy'] = np.random.rand() < self.proba_tachy
         dict_globals['has_elevations'] = np.random.rand() < self.proba_elevation
-        dict_globals['has_baseline_wander'] = np.random.rand() < self.proba_baseline_wander
         dict_globals['has_sinus_arrest'] = np.random.rand() < self.proba_sinus_arrest
         if dict_globals['has_sinus_arrest']:
             dict_globals['arrest_location'] = np.random.randint(2,6)
@@ -245,14 +244,15 @@ class Dataset(torch.utils.data.Dataset):
             IDs[  'T'] = np.random.randint(len(  self.T), size=self.cycles)
             IDs[ 'TP'] = np.random.randint(len( self.TP), size=self.cycles)
 
-        # Condition-specific modifiers
+        ##### Condition-specific modifiers #####
+        # ~~~~~~~~~~~~~~~ ATRIAL FIBRILLATION ~~~~~~~~~~~~~~~~
         if dict_globals['has_AF']: 
             IDs['P'] = np.repeat(np.random.randint(len(self.P)),self.cycles)
         filt_arrest = np.zeros((self.cycles,),dtype=bool)
         if dict_globals['has_sinus_arrest']:
             filt_arrest[dict_globals['arrest_location']:dict_globals['arrest_location']+dict_globals['arrest_duration']] = True
 
-        # Define tachy lens if has tachy
+        # ~~~~~~~~~~~~~ VENTRICULAR TACHYCARDIA ~~~~~~~~~~~~~~
         if dict_globals['has_tachy']:
             base_len = np.random.randint(3,self.tachy_maxlen)
             dict_globals['tachy_len'] = (np.random.randint(-3,3,size=self.cycles)+base_len).clip(min=0)
@@ -260,6 +260,18 @@ class Dataset(torch.utils.data.Dataset):
             filt_long_TP = np.random.rand(self.cycles) < IDs['ectopics']*0.90
             if (not dict_globals['has_TV']):
                 dict_globals['tachy_len'][filt_long_TP] += np.random.randint(60,100,size=filt_long_TP.sum())
+
+        # ~~~~~~~~~~~~~ ATRIOVENTRICULAR BLOCK  ~~~~~~~~~~~~~~
+
+        if dict_globals['has_AV_block']:
+            num_skipped = np.random.randint(1,4)
+            num_normal = np.random.randint(2,6)
+            first = np.random.randint(0,4)
+
+            IDs['AV_block'] = np.array([False]*first + ([True]*num_skipped+[False]*num_normal)*math.ceil(self.cycles/(num_skipped+num_normal)))
+            IDs['AV_block'] = IDs['AV_block'][:self.cycles]
+        else:
+            IDs['AV_block'] = np.zeros((self.cycles,),dtype=bool)
 
         ##### Exceptions according to different conditions #####
         # In case QRS is not expressed
@@ -271,7 +283,7 @@ class Dataset(torch.utils.data.Dataset):
         IDs['QRS'][filt_arrest | filt_QRS                                                                            ] = -1
         IDs[ 'ST'][filt_arrest | filt_QRS | (np.random.rand(self.cycles) < self.proba_no_ST)                         ] = -1
         IDs[  'T'][filt_arrest | filt_QRS                                                                            ] = -1
-
+        
         # ~~~~~~~~~~~~~~~~~~~~~~ SIZES ~~~~~~~~~~~~~~~~~~~~~~~
         IDs['QRS_sizes'] = np.array([self.QRS[self.QRSkeys[id]].size for id in IDs['QRS']])
         IDs['P_sizes'] = np.array([self.P[self.Pkeys[id]].size for id in IDs['P']])
@@ -416,11 +428,14 @@ class Dataset(torch.utils.data.Dataset):
 
         if dict_globals['has_elevations']:
             # Generate elevation template
-            elevation_template = self.elevation_range*np.random.rand(self.cycles,active.shape[1]) - self.elevation_range/2
+            elevation_template = self.elevation_range*(2*np.random.rand(self.cycles,active.shape[1])-1)
 
             # Refine template's results - zero if the ID is zero
             active_rows = np.any(active,axis=-1)
             elevation_template[np.logical_not(active)] = 0
+
+            # Give more weight to P, QRS and T waves
+            elevation_template[:,[0,2,4]] *= 2
 
             # Define correction factor for number of non-negative amplitudes
             correction_factor = np.repeat(elevation_template.sum(-1,keepdims=True),active.shape[1],-1)
@@ -441,21 +456,14 @@ class Dataset(torch.utils.data.Dataset):
         # Init output
         total_size = np.sum([beat.size for beat in beats],dtype=int)
         qrs_amplitude = dict_globals['amplitudes']['QRS'][index]
-
-        # Output cycle
-        cycle = {}
-
-        # Declutter code
-        IDs = dict_globals['IDs']
+        IDs = dict_globals['IDs'] # Declutter code
 
         ##### Generate all waves #####
         waves = ['P','PQ','QRS','ST','T','U','TP']
+        if (index == 0):
+            waves = waves[dict_globals['begining_wave']:] 
+        cycle = {k: None for k in waves}
         for i,type in enumerate(waves):
-            # Crop part of the first cycle
-            if (index == 0) and (i < dict_globals['begining_wave']): 
-                cycle[type] = None
-                continue
-            
             cycle[type] = self.segment_compose(index, type, dict_globals, qrs_amplitude)
 
         #### Merge beats #####
@@ -558,7 +566,8 @@ class Dataset(torch.utils.data.Dataset):
 
     ################# SIGNAL-LEVEL FUNCTIONS #################
     def signal_baseline_wander(self, signal: np.ndarray):
-        baseline = self.random_walk(scale=self.baseline_noise_scale, size=signal.size, smoothing_window=self.baseline_smoothing_window)
+        scale = 0.5*np.abs(np.random.randn())*self.baseline_noise_scale
+        baseline = self.random_walk(scale=scale, size=signal.size, smoothing_window=self.baseline_smoothing_window)
         signal = signal + baseline
         return signal
 
@@ -570,6 +579,26 @@ class Dataset(torch.utils.data.Dataset):
         else:
             masks = np.pad(masks, (dict_globals['flatline_left'],dict_globals['flatline_right']), mode='constant', constant_values=0)
         return signal, masks
+
+
+    def signal_elevation(self, signal: np.ndarray, beats: List[np.ndarray], dict_globals: dict):
+        if dict_globals['has_elevations']:
+            noise = []
+            on = 0
+            off = 0
+            total_size = 0
+
+            for i,beat in enumerate(beats):
+                off += dict_globals['elevations'][i]
+                noise.append(np.linspace(on,off,beat.size))
+                total_size += beat.size
+                on += dict_globals['elevations'][i]
+                if total_size >= dict_globals['N']: break
+
+            noise = np.concatenate(noise)
+            noise = self.smooth(noise,20)
+            signal += noise[:signal.size]
+        return signal
 
 
     def signal_AF(self, signal: np.ndarray):
@@ -614,17 +643,10 @@ class Dataset(torch.utils.data.Dataset):
         return signal
 
 
-    def beats_elevation(self, beats: List[np.ndarray], dict_globals: dict):
-        for i,beat in enumerate(beats):
-            beats[i] = self.segment_elevation(beat,dict_globals['elevations'][i])
-        return beats
-
-
     ################# SEGMENT-LEVEL FUNCTIONS #################
     def P_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         if segment.size < 20:
-            if np.random.rand() < 0.25:
-                segment = self.interpolate(segment, np.random.randint(15,40))
+            if np.random.rand() < 0.25:            segment = self.interpolate(segment, np.random.randint(15,40))
         return segment
 
 
@@ -638,8 +660,8 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def ST_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if   dict_globals['has_TV']:    segment = utils.signal.on_off_correction(self.random_walk(size=np.random.randint(2,32)))
-        elif dict_globals['has_tachy']: segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
+        if dict_globals['has_TV']:                 segment = utils.signal.on_off_correction(self.random_walk(size=np.random.randint(2,32)))
+        elif dict_globals['has_tachy']:            segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
         return segment
 
 
@@ -649,7 +671,8 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def TP_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if dict_globals['has_tachy']:   segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
+        # if dict_globals['IDs']['AV_block'][index]: segment = utils.signal.on_off_correction(segment[:dict_globals['AV_block_size']])
+        if dict_globals['has_tachy']:            segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
         return segment
 
 
