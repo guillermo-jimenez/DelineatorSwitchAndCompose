@@ -25,7 +25,7 @@ class Dataset(torch.utils.data.Dataset):
                  PQdistribution, STdistribution, TPdistribution, 
                  length = 32768, N = 2048, proba_same_morph = 0.25,
                  proba_elevation = 0.2, proba_AV_block = 0.1,
-                 proba_interpolation = 0.2, proba_merge_TP = 0.5,
+                 proba_interpolation = 0.2, proba_merge_TP = 0.25,
                  proba_merge_PQ = 0.15, proba_merge_ST = 0.25,
                  proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
                  proba_TV = 0.1, proba_AF = 0.1, proba_ectopics = 0.1, 
