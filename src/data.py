@@ -37,7 +37,7 @@ class Dataset(torch.utils.data.Dataset):
                  tachy_maxlen = 15, elevation_range = 0.1,
                  baseline_noise_scale = 0.025, baseline_smoothing_window = 51, 
                  joint_smoothing_window = 5, convolution_ptg = 0.25,
-                 amplitude_std = 0.25, interp_std = 0.25, 
+                 amplitude_std = 0.25, interp_std = 0.15, 
                  ectopic_QRS_size = 40,
                  QRS_ampl_low_thres = 0.5, QRS_ampl_high_thres = 1.25,
                  scaling_metric: Callable = utils.signal.amplitude,
@@ -202,7 +202,7 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals['index_onset'] = np.random.randint(50)
         dict_globals['begining_wave'] = np.random.randint(7)
         dict_globals['global_amplitude'] = 1.+(np.random.randn()*self.amplitude_std)
-        dict_globals['interp_length'] = max([1.+(np.random.randn()*self.interp_std),0.5])
+        dict_globals['interp_length'] = np.clip(1.+(np.random.randn()*self.interp_std),0.75,1.25)
         if dict_globals['has_flatline']: dict_globals['flatline_length'] = np.random.randint(1,self.N//np.random.randint(2,5))
         if dict_globals['has_flatline']: dict_globals['flatline_left'] = np.random.randint(dict_globals['flatline_length'])
         if dict_globals['has_flatline']: dict_globals['flatline_right'] = dict_globals['flatline_length']-dict_globals['flatline_left']
