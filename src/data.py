@@ -39,7 +39,7 @@ class Dataset(torch.utils.data.Dataset):
                  joint_smoothing_window = 5, convolution_ptg = 0.25,
                  amplitude_std = 0.25, interp_std = 0.25, 
                  ectopic_QRS_size = 40,
-                 QRS_ampl_low_thres = 0.5, QRS_ampl_high_thres = 1.15,
+                 QRS_ampl_low_thres = 0.5, QRS_ampl_high_thres = 1.5,
                  scaling_metric: Callable = utils.signal.amplitude,
                  labels_as_masks = True, return_beats: bool = False,
                  relative_amplitude = True):
