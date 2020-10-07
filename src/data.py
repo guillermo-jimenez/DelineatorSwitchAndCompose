@@ -338,18 +338,18 @@ class Dataset(torch.utils.data.Dataset):
         }
 
         # P wave in case small amplitudes
-        filter = (amplitudes['P'] < 0.01) | (amplitudes['P'] > 0.3)
+        filter = (amplitudes['P'] < 0.02) | (amplitudes['P'] > 0.3)
         while np.any(filter):
             # Retrieve generous sample, faster than sampling twice
             new_amplitudes = self.Pdistribution.rvs(self.cycles)
-            new_amplitudes = new_amplitudes[(new_amplitudes >= 0.01) & (new_amplitudes <= 0.3)]
+            new_amplitudes = new_amplitudes[(new_amplitudes >= 0.02) & (new_amplitudes <= 0.3)]
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
             if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
             elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
             # Input into the amplitudes vector
             amplitudes['P'][filter] = new_amplitudes
-            filter = (amplitudes['P'] < 0.01) | (amplitudes['P'] > 0.3)
+            filter = (amplitudes['P'] < 0.02) | (amplitudes['P'] > 0.3)
 
         # QRS in case low/high voltage
         filter = (amplitudes['QRS'] < self.QRS_ampl_low_thres) | (amplitudes['QRS'] > self.QRS_ampl_high_thres)
@@ -407,7 +407,7 @@ class Dataset(torch.utils.data.Dataset):
         amplitudes['T']   *= (1 + sigmoid( (dict_globals['IDs'][  'T_sizes'] -                    55)*0.25)) # Rule of thumb
 
         # Clip amplitudes
-        amplitudes['P']  = amplitudes['P'].clip(min=0.01, max=0.3)
+        amplitudes['P']  = amplitudes['P'].clip(min=0.02, max=0.3)
         amplitudes['PQ'] = amplitudes['P'].clip(          max=0.05)
         amplitudes['ST'] = amplitudes['T'].clip(          max=0.05)
         amplitudes['T']  = amplitudes['T'].clip(min=0.2,  max=0.6)
