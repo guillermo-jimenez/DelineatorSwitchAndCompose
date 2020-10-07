@@ -31,7 +31,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_merge_PQ = 0.0, proba_merge_ST = 0.15,
                  proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
                  proba_TV = 0.05, proba_AF = 0.05, proba_ectopics = 0.1, 
-                 proba_flatline = 0.05, proba_tachy = 0.05, 
+                 proba_flatline = 0.05, proba_tachy = 0.1, 
                  proba_sinus_arrest = 0.1, proba_U_wave = 0.1,
                  ectopic_amplitude_threshold = 0.1, apply_smoothing = True,
                  tachy_maxlen = 15, elevation_range = 0.1,
