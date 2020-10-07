@@ -753,7 +753,7 @@ class Dataset(torch.utils.data.Dataset):
 
         # Apply interpolation (if applicable, if segment is not empty)
         if (np.random.rand() < self.proba_interpolation) and (segment.size > 1):
-            new_size = int(segment.size*(0.75+np.random.rand()*0.5))
+            new_size = int(segment.size*(0.85+np.random.rand()*0.3))
             segment = self.interpolate(segment, new_size)
 
         return segment
