@@ -27,7 +27,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_no_QRS = 0.01, proba_no_PQ = 0.15, 
                  proba_no_ST = 0.15, proba_same_morph = 0.25,
                  proba_elevation = 0.2, proba_AV_block = 0.1,
-                 proba_interpolation = 0.2, proba_merge_TP = 0.35,
+                 proba_interpolation = 0.2, proba_merge_TP = 0.25,
                  proba_merge_PQ = 0.0, proba_merge_ST = 0.15,
                  proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
                  proba_TV = 0.05, proba_AF = 0.05, proba_ectopics = 0.1, 
@@ -220,9 +220,9 @@ class Dataset(torch.utils.data.Dataset):
         else:                      IDs['ectopics'] = np.random.rand(self.cycles) < self.proba_ectopics
 
         # Merge T+P, P+QRS, QRS+T
-        IDs['merge_TP'] = np.random.rand(self.cycles) < self.proba_merge_TP
-        IDs['merge_PQ'] = np.random.rand(self.cycles) < self.proba_merge_PQ
-        IDs['merge_ST'] = np.random.rand(self.cycles) < self.proba_merge_ST
+        IDs['merge_TP'] = np.random.rand(self.cycles) < self.proba_merge_TP*(1 + dict_globals['has_tachy'])
+        IDs['merge_PQ'] = np.random.rand(self.cycles) < self.proba_merge_PQ*(1 + dict_globals['has_tachy'])
+        IDs['merge_ST'] = np.random.rand(self.cycles) < self.proba_merge_ST*(1 + dict_globals['has_tachy'])
         
         ##### Generate identifiers #####
         if dict_globals['same_morph']:
@@ -407,11 +407,11 @@ class Dataset(torch.utils.data.Dataset):
         amplitudes['T']   *= (1 + sigmoid( (dict_globals['IDs'][  'T_sizes'] -                    55)*0.25)) # Rule of thumb
 
         # Clip amplitudes
-        amplitudes['P']  = amplitudes['P'].clip(min=0.02, max=0.3)
-        amplitudes['PQ'] = amplitudes['P'].clip(          max=0.05)
-        amplitudes['ST'] = amplitudes['T'].clip(          max=0.05)
-        amplitudes['T']  = amplitudes['T'].clip(min=0.05,  max=0.6)
-        amplitudes['TP'] = amplitudes['T'].clip(          max=0.05)
+        amplitudes['P']  = amplitudes[ 'P'].clip(min=0.02, max=0.3)
+        amplitudes['PQ'] = amplitudes['PQ'].clip(          max=0.025)
+        amplitudes['ST'] = amplitudes['ST'].clip(          max=0.025)
+        amplitudes['T']  = amplitudes[ 'T'].clip(min=0.05, max=0.6)
+        amplitudes['TP'] = amplitudes['TP'].clip(          max=0.025)
 
         # Generate U wave's amplitudes
         amplitudes['U'] = amplitudes['T']*(np.random.rand(self.cycles)*0.1+0.05)
