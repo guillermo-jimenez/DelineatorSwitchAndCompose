@@ -516,7 +516,6 @@ class Dataset(torch.utils.data.Dataset):
             if IDs['merge_TP'][index]:
                 if IDs['U'][index] != -1:    cycle[  'U'], cycle[ 'P2'] = self.segments_convolve(cycle[  'U'], cycle[  'P'], IDs['extension']['TP'][index], reverse='last', sign_relation='different')
                 if IDs['U'][index] == -1:    cycle[  'T'], cycle[ 'P2'] = self.segments_convolve(cycle[  'T'], cycle[  'P'], IDs['extension']['TP'][index], reverse='last', sign_relation='different')
-                if IDs['merge_PQ'][index-1]: waves.remove('P')
 
         ##### Add valid cycle elements to beats #####
         for i,type in enumerate(waves):
