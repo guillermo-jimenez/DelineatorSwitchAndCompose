@@ -381,18 +381,18 @@ class Dataset(torch.utils.data.Dataset):
             filter = (amplitudes['T'] < self.ectopic_amplitude_threshold) & dict_globals['IDs']['ectopics']
 
         # T wave in case large amplitudes
-        filter = (amplitudes['T'] < 0.2) | (amplitudes['T'] > 0.6)
+        filter = (amplitudes['T'] < 0.05) | (amplitudes['T'] > 0.6)
         while np.any(filter):
             # Retrieve generous sample, faster than sampling twice
             new_amplitudes = self.Tdistribution.rvs(self.cycles)
-            new_amplitudes = new_amplitudes[(new_amplitudes >= 0.2) & (new_amplitudes <= 0.6)]
+            new_amplitudes = new_amplitudes[(new_amplitudes >= 0.05) & (new_amplitudes <= 0.6)]
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
             if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
             elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
             # Input into the amplitudes vector
             amplitudes['T'][filter] = new_amplitudes
-            filter = (amplitudes['T'] < 0.2) | (amplitudes['T'] > 0.6)
+            filter = (amplitudes['T'] < 0.05) | (amplitudes['T'] > 0.6)
 
         ###### CONDITION-SPECIFIC AMPLITUDES #####
         if dict_globals['same_morph']: 
@@ -410,7 +410,7 @@ class Dataset(torch.utils.data.Dataset):
         amplitudes['P']  = amplitudes['P'].clip(min=0.02, max=0.3)
         amplitudes['PQ'] = amplitudes['P'].clip(          max=0.05)
         amplitudes['ST'] = amplitudes['T'].clip(          max=0.05)
-        amplitudes['T']  = amplitudes['T'].clip(min=0.2,  max=0.6)
+        amplitudes['T']  = amplitudes['T'].clip(min=0.05,  max=0.6)
         amplitudes['TP'] = amplitudes['T'].clip(          max=0.05)
 
         # Generate U wave's amplitudes
