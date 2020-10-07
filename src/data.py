@@ -27,7 +27,7 @@ class Dataset(torch.utils.data.Dataset):
                  proba_elevation = 0.2, proba_AV_block = 0.1,
                  proba_interpolation = 0.2, proba_merge_TP = 0.25,
                  proba_merge_PQ = 0.15, proba_merge_ST = 0.25,
-                 proba_mixup = 0.25, mixup_alpha = 1.0, mixup_beta = 1.0,
+                 proba_mixup = 0.25, mixup_alpha = 25, mixup_beta = 5,
                  proba_TV = 0.1, proba_AF = 0.1, proba_ectopics = 0.1, 
                  proba_flatline = 0.05, proba_tachy = 0.1, 
                  proba_sinus_arrest = 0.1, proba_U_wave = 0.1,
@@ -749,6 +749,8 @@ class Dataset(torch.utils.data.Dataset):
         if (np.random.rand() < self.proba_mixup) and (type in ['P','QRS','T']):
             segment2 = self.get_segment(type)
             segment2 = self.segment_post_operation(type, segment2, dict_globals, index)
+            if utils.signal.signed_maxima(segment) != utils.signal.signed_maxima(segment2):
+                segment2 *= -1
             segment = self.segment_mixup(segment, segment2)
 
         # Apply interpolation (if applicable, if segment is not empty)
