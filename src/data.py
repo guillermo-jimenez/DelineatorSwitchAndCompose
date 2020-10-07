@@ -459,10 +459,16 @@ class Dataset(torch.utils.data.Dataset):
         IDs = dict_globals['IDs'] # Declutter code
 
         ##### Generate all waves #####
+        # Define available waves
         waves = ['P','PQ','QRS','ST','T','U','TP']
-        if (index == 0):
-            waves = waves[dict_globals['begining_wave']:] 
+
+        # In case the first element, crop first X waves
+        if (index == 0): waves = waves[dict_globals['begining_wave']:] 
+
+        # Output structure
         cycle = {k: None for k in waves}
+
+        # Iterate over available waves
         for i,type in enumerate(waves):
             cycle[type] = self.segment_compose(index, type, dict_globals, qrs_amplitude)
 
