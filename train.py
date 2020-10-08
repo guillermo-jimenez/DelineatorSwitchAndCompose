@@ -14,7 +14,6 @@ import shutil
 import uuid
 import random
 import platform
-import ecgdetectors
 import torch
 import torchvision
 import numpy as np
