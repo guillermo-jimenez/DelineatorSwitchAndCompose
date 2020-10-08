@@ -5,8 +5,8 @@ import numpy as np
 import keras
 
 from importlib import import_module
-from utils.logger import conditional_makedir
-from utils.transforms import DataAugmentationTransform
+from sak.logger import conditional_makedir
+from sak.transforms import DataAugmentationTransform
 
 # convert series to supervised learning
 def series_to_supervised(data, n_length, n_stride=1):
@@ -467,7 +467,7 @@ class ConfigParser():
         return self.__str__()
 
 
-class DataGenerator(keras.utils.Sequence):
+class DataGenerator(keras.sak.Sequence):
     '''Generates data for Keras'''
 
     def __init__(self, labels, config, data, shuffle=True):

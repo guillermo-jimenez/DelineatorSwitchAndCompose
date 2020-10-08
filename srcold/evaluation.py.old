@@ -1,8 +1,8 @@
 import numpy as np
 import os
 import pandas
-from utils.data_structures import MetricsStorage
-from utils.inference import predict
+from sak.data_structures import MetricsStorage
+from sak.inference import predict
 import cv2
 
 

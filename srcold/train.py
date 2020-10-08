@@ -10,18 +10,18 @@ import keras
 import keras.backend
 import tensorflow as tf
 
-from utils.check import check_weights_exist
-from utils.check import shuffle_split_array
-from utils.logger import write_summary
-from utils.data_structures import ExecutionInformation
-# from utils.data_structures import FoldKeys
-# from utils.data_structures import FoldPaths
-from utils.data_structures import DataGenerator
-from utils.evaluation import evaluate
-from utils.disambiguator import select_optimizer
-from utils.disambiguator import select_loss
-import utils.architecture as arch
-import utils.architecture2D as arch2D
+from sak.check import check_weights_exist
+from sak.check import shuffle_split_array
+from sak.logger import write_summary
+from sak.data_structures import ExecutionInformation
+# from sak.data_structures import FoldKeys
+# from sak.data_structures import FoldPaths
+from sak.data_structures import DataGenerator
+from sak.evaluation import evaluate
+from sak.disambiguator import select_optimizer
+from sak.disambiguator import select_loss
+import sak.architecture as arch
+import sak.architecture2D as arch2D
 
 
 def train_cross_val(KFolds, config, data, metrics, metrics_CV2, results, results_CV2):

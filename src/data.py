@@ -9,15 +9,15 @@ import scipy.stats
 from scipy.stats import norm
 from scipy.interpolate import interp1d
 
-import utils.signal
-import utils.data
-import utils.data.augmentation
+import sak.signal
+import sak.data
+import sak.data.augmentation
 
 def sigmoid(x: float or Iterable) -> float or np.ndarray:
     return 1/(1 + np.exp(-x))
 
 
-class Dataset(torch.utils.data.Dataset):
+class Dataset(torch.sak.data.Dataset):
     '''Generates data for PyTorch'''
 
     def __init__(self, P, QRS, T, PQ, ST, TP, 
@@ -38,7 +38,7 @@ class Dataset(torch.utils.data.Dataset):
                  amplitude_std = 0.25, interp_std = 0.15, 
                  ectopic_QRS_size = 40,
                  QRS_ampl_low_thres = 0.5, QRS_ampl_high_thres = 1.25,
-                 scaling_metric: Callable = utils.signal.amplitude,
+                 scaling_metric: Callable = sak.signal.amplitude,
                  labels_as_masks = True, return_beats: bool = False,
                  relative_amplitude = True):
         #### Segments ####
@@ -54,12 +54,12 @@ class Dataset(torch.utils.data.Dataset):
         self.QRS = QRS
         self.QRSkeys = np.array(list(QRS))
         self.QRSdistribution = QRSdistribution
-        self.QRSsign = {k: round(float(utils.signal.signed_maxima(self.QRS[k]))) for k in self.QRS}
+        self.QRSsign = {k: round(float(sak.signal.signed_maxima(self.QRS[k]))) for k in self.QRS}
         self.QRS_last_sign = {}
         for k in self.QRS:
             segment = self.QRS[k]
-            crossings = utils.signal.zero_crossings(segment)[0]
-            self.QRS_last_sign[k] = np.sign(utils.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
+            crossings = sak.signal.zero_crossings(segment)[0]
+            self.QRS_last_sign[k] = np.sign(sak.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
         # ST wave
         self.ST = ST
         self.STdistribution = STdistribution
@@ -701,7 +701,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def ST_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if dict_globals['has_TV']:                 segment = utils.signal.on_off_correction(self.random_walk(size=np.random.randint(2,32)))
+        if dict_globals['has_TV']:                 segment = sak.signal.on_off_correction(self.random_walk(size=np.random.randint(2,32)))
         elif dict_globals['has_tachy']:            segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
         return segment
 
@@ -712,7 +712,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def TP_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if dict_globals['IDs']['AV_block'][index]: segment = utils.signal.on_off_correction(self.smooth(self.random_walk(scale=0.05,size=dict_globals['IDs']['AV_sizes'][index]),20))
+        if dict_globals['IDs']['AV_block'][index]: segment = sak.signal.on_off_correction(self.smooth(self.random_walk(scale=0.05,size=dict_globals['IDs']['AV_sizes'][index]),20))
         elif dict_globals['has_tachy']:            segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
         return segment
 
@@ -749,7 +749,7 @@ class Dataset(torch.utils.data.Dataset):
         if (np.random.rand() < self.proba_mixup) and (type in ['P','QRS','T']):
             segment2 = self.get_segment(type)
             segment2 = self.segment_post_operation(type, segment2, dict_globals, index)
-            if utils.signal.signed_maxima(segment) != utils.signal.signed_maxima(segment2):
+            if sak.signal.signed_maxima(segment) != sak.signal.signed_maxima(segment2):
                 segment2 *= -1
             segment = self.segment_mixup(segment, segment2)
 
@@ -783,10 +783,10 @@ class Dataset(torch.utils.data.Dataset):
         if segment1.size != segment2.size: segment2 = self.interpolate(segment2, segment1.size)
 
         # Generate a mixup segment
-        (mixup_segment,_) = utils.data.augmentation.mixup(segment1,segment2,self.mixup_alpha,self.mixup_beta)
+        (mixup_segment,_) = sak.data.augmentation.mixup(segment1,segment2,self.mixup_alpha,self.mixup_beta)
 
         # Scale to be in [-1,1] range
-        mixup_segment = utils.data.ball_scaling(mixup_segment,metric=self.scaling_metric)
+        mixup_segment = sak.data.ball_scaling(mixup_segment,metric=self.scaling_metric)
 
         return mixup_segment
 
@@ -807,7 +807,7 @@ class Dataset(torch.utils.data.Dataset):
     def segment_tachy(self, segment: np.ndarray, nx: int):
         new_segment = segment[:nx]
         if new_segment.size != 0:
-            new_segment = utils.signal.on_off_correction(new_segment)
+            new_segment = sak.signal.on_off_correction(new_segment)
             if new_segment.ndim == 0:
                 new_segment = new_segment[:,None]
         return new_segment
@@ -815,10 +815,10 @@ class Dataset(torch.utils.data.Dataset):
 
     def QRS_ectopic(self, segment: np.ndarray, dict_globals: dict, index: int):
         # Compute zero crossings of QRS wave
-        crossings = utils.signal.zero_crossings(segment)[0]
+        crossings = sak.signal.zero_crossings(segment)[0]
 
         # Compute sign of T wave
-        dict_globals['sign_t'] = -np.sign(utils.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
+        dict_globals['sign_t'] = -np.sign(sak.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
 
         # Interpolate segment, widen it
         segment = self.interpolate(segment,np.random.randint(30,70))
@@ -832,7 +832,7 @@ class Dataset(torch.utils.data.Dataset):
             sign_t = dict_globals['sign_t']
 
             # Check if signs differ; if so, reverse T wave
-            segment *= (-1)**(np.sign(utils.signal.signed_maxima(segment)) != sign_t)
+            segment *= (-1)**(np.sign(sak.signal.signed_maxima(segment)) != sign_t)
 
             # Delete for future overwriting
             dict_globals.pop('sign_t') # Delete from globals for next ectopic
@@ -857,8 +857,8 @@ class Dataset(torch.utils.data.Dataset):
 
         # Reverse p wave if necessary
         if reverse is not None:
-            sign1 = np.sign(utils.signal.signed_maxima(segment1))
-            sign2 = np.sign(utils.signal.signed_maxima(segment2))
+            sign1 = np.sign(sak.signal.signed_maxima(segment1))
+            sign2 = np.sign(sak.signal.signed_maxima(segment2))
 
             if   sign_relation.lower() == 'equal':     condition = sign1 == sign2
             elif sign_relation.lower() == 'different': condition = sign1 != sign2
@@ -875,7 +875,7 @@ class Dataset(torch.utils.data.Dataset):
         # Compute cropping filter
         factor1 = reference[:segment1.size]
         factor2 = composite[:segment1.size]
-        normalization_factor = utils.signal.amplitude(factor1)
+        normalization_factor = sak.signal.amplitude(factor1)
         filt = np.abs(factor1-factor2)/normalization_factor > 0.5 # Rule of thumb
         # Avoid issues with too sharp waves
         filt[:loc_max1+1] = False
@@ -910,7 +910,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def noise(self, length: int, amplitude: float, smooth: bool = True):
         x = amplitude*(np.random.rand(length)*2-1)
-        x = utils.signal.on_off_correction(x)
+        x = sak.signal.on_off_correction(x)
         if smooth: x = self.smooth(x,5)
         return x
 

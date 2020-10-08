@@ -1,7 +1,7 @@
 import tensorflow
 import keras.optimizers
 import keras.initializers
-from utils.losses import *
+from sak.losses import *
 
 def select_loss(loss):
     switcher = {

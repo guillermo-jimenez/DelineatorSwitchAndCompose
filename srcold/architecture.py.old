@@ -5,12 +5,12 @@ import numpy.random
 import keras
 import csv
 import keras.layers
-from utils.disambiguator import select_kernel_initializer
-from utils.modules import StemModule
-from utils.modules import AtrousMiddleModule
-from utils.modules import LevelModule
-from utils.modules import PoolingModule
-from utils.modules import OutputModule
+from sak.disambiguator import select_kernel_initializer
+from sak.modules import StemModule
+from sak.modules import AtrousMiddleModule
+from sak.modules import LevelModule
+from sak.modules import PoolingModule
+from sak.modules import OutputModule
 
 class FlatNet():
     '''Model generator'''

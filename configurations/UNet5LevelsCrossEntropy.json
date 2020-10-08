@@ -32,24 +32,24 @@
         "class": "torchvision.transforms.RandomChoice",
         "arguments": {},
         "types": {
-            "utils.torch.data.augmentation.AdditiveWhiteGaussianNoise": [
+            "sak.torch.data.augmentation.AdditiveWhiteGaussianNoise": [
                 20,
                 0.01
             ],
-            "utils.torch.data.augmentation.PowerlineNoise": [
+            "sak.torch.data.augmentation.PowerlineNoise": [
                 20,
                 500,
                 50.0
             ],
-            "utils.torch.data.augmentation.BaselineNoise": [
+            "sak.torch.data.augmentation.BaselineNoise": [
                 -5,
                 500,
                 0.5
             ],
-            "utils.torch.data.augmentation.ChangeAmplitude": [
+            "sak.torch.data.augmentation.ChangeAmplitude": [
                 0.01
             ],
-            "utils.torch.data.augmentation.SegmentationErrors": [
+            "sak.torch.data.augmentation.SegmentationErrors": [
                 10
             ]
         }
@@ -111,9 +111,9 @@
         "nodes": [
             {
                 "id": "encoder_lvl1",
-                "class": "utils.torch.nn.CNN",
+                "class": "sak.torch.nn.CNN",
                 "operation": {
-                    "class": "utils.torch.nn.SeparableConv1d"
+                    "class": "sak.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -132,7 +132,7 @@
                             }
                         },
                         {
-                            "class": "utils.torch.nn.Dropout1d",
+                            "class": "sak.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -149,9 +149,9 @@
             },
             {
                 "id": "encoder_lvl2",
-                "class": "utils.torch.nn.CNN",
+                "class": "sak.torch.nn.CNN",
                 "operation": {
-                    "class": "utils.torch.nn.SeparableConv1d"
+                    "class": "sak.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -170,7 +170,7 @@
                             }
                         },
                         {
-                            "class": "utils.torch.nn.Dropout1d",
+                            "class": "sak.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -187,9 +187,9 @@
             },
             {
                 "id": "encoder_lvl3",
-                "class": "utils.torch.nn.CNN",
+                "class": "sak.torch.nn.CNN",
                 "operation": {
-                    "class": "utils.torch.nn.SeparableConv1d"
+                    "class": "sak.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -208,7 +208,7 @@
                             }
                         },
                         {
-                            "class": "utils.torch.nn.Dropout1d",
+                            "class": "sak.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -225,9 +225,9 @@
             },
             {
                 "id": "encoder_lvl4",
-                "class": "utils.torch.nn.CNN",
+                "class": "sak.torch.nn.CNN",
                 "operation": {
-                    "class": "utils.torch.nn.SeparableConv1d"
+                    "class": "sak.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -246,7 +246,7 @@
                             }
                         },
                         {
-                            "class": "utils.torch.nn.Dropout1d",
+                            "class": "sak.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -263,9 +263,9 @@
             },
             {
                 "id": "encoder_lvl5",
-                "class": "utils.torch.nn.CNN",
+                "class": "sak.torch.nn.CNN",
                 "operation": {
-                    "class": "utils.torch.nn.SeparableConv1d"
+                    "class": "sak.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -284,7 +284,7 @@
                             }
                         },
                         {
-                            "class": "utils.torch.nn.Dropout1d",
+                            "class": "sak.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -301,13 +301,13 @@
             },
             {
                 "id": "decoder_concat4",
-                "class": "utils.torch.nn.Concatenate"
+                "class": "sak.torch.nn.Concatenate"
             },
             {
                 "id": "decoder_lvl4",
-                "class": "utils.torch.nn.CNN",
+                "class": "sak.torch.nn.CNN",
                 "operation": {
-                    "class": "utils.torch.nn.SeparableConv1d"
+                    "class": "sak.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -326,7 +326,7 @@
                             }
                         },
                         {
-                            "class": "utils.torch.nn.Dropout1d",
+                            "class": "sak.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -343,13 +343,13 @@
             },
             {
                 "id": "decoder_concat3",
-                "class": "utils.torch.nn.Concatenate"
+                "class": "sak.torch.nn.Concatenate"
             },
             {
                 "id": "decoder_lvl3",
-                "class": "utils.torch.nn.CNN",
+                "class": "sak.torch.nn.CNN",
                 "operation": {
-                    "class": "utils.torch.nn.SeparableConv1d"
+                    "class": "sak.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -368,7 +368,7 @@
                             }
                         },
                         {
-                            "class": "utils.torch.nn.Dropout1d",
+                            "class": "sak.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -385,13 +385,13 @@
             },
             {
                 "id": "decoder_concat2",
-                "class": "utils.torch.nn.Concatenate"
+                "class": "sak.torch.nn.Concatenate"
             },
             {
                 "id": "decoder_lvl2",
-                "class": "utils.torch.nn.CNN",
+                "class": "sak.torch.nn.CNN",
                 "operation": {
-                    "class": "utils.torch.nn.SeparableConv1d"
+                    "class": "sak.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -410,7 +410,7 @@
                             }
                         },
                         {
-                            "class": "utils.torch.nn.Dropout1d",
+                            "class": "sak.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -427,13 +427,13 @@
             },
             {
                 "id": "decoder_concat1",
-                "class": "utils.torch.nn.Concatenate"
+                "class": "sak.torch.nn.Concatenate"
             },
             {
                 "id": "decoder_lvl1",
-                "class": "utils.torch.nn.CNN",
+                "class": "sak.torch.nn.CNN",
                 "operation": {
-                    "class": "utils.torch.nn.SeparableConv1d"
+                    "class": "sak.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -453,7 +453,7 @@
                             }
                         },
                         {
-                            "class": "utils.torch.nn.Dropout1d",
+                            "class": "sak.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }

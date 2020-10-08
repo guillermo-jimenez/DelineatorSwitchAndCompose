@@ -33,24 +33,24 @@ import scipy.stats
 
 import src.data
 import utils
-import utils.wavelet
-import utils.data
-import utils.data.augmentation
-import utils.visualization
-import utils.visualization.plot
-import utils.torch
-import utils.torch.nn
-import utils.torch.nn as nn
-import utils.torch.loss
-import utils.torch.train
-import utils.torch.data
-import utils.torch.preprocessing
-import utils.torch.models
-import utils.torch.models.lego
-import utils.torch.models.variational
-import utils.torch.models.classification
+import sak.wavelet
+import sak.data
+import sak.data.augmentation
+import sak.visualization
+import sak.visualization.plot
+import sak.torch
+import sak.torch.nn
+import sak.torch.nn as nn
+import sak.torch.loss
+import sak.torch.train
+import sak.torch.data
+import sak.torch.preprocessing
+import sak.torch.models
+import sak.torch.models.lego
+import sak.torch.models.variational
+import sak.torch.models.classification
 
-from utils.signal import StandardHeader
+from sak.signal import StandardHeader
 
 def smooth(x: np.ndarray, window_size: int, conv_mode: str = "same"):
     x = np.pad(np.copy(x),(window_size,window_size),"edge")
@@ -67,19 +67,19 @@ def main(config_file, model_name, input_files):
         execution = json.load(f)
 
     # 1.1. Load individual segments
-    P = utils.pickleload(os.path.join(input_files,"Psignal_new.pkl"))
-    PQ = utils.pickleload(os.path.join(input_files,"PQsignal_new.pkl"))
-    QRS = utils.pickleload(os.path.join(input_files,"QRSsignal_new.pkl"))
-    ST = utils.pickleload(os.path.join(input_files,"STsignal_new.pkl"))
-    T = utils.pickleload(os.path.join(input_files,"Tsignal_new.pkl"))
-    TP = utils.pickleload(os.path.join(input_files,"TPsignal_new.pkl"))
+    P = sak.pickleload(os.path.join(input_files,"Psignal_new.pkl"))
+    PQ = sak.pickleload(os.path.join(input_files,"PQsignal_new.pkl"))
+    QRS = sak.pickleload(os.path.join(input_files,"QRSsignal_new.pkl"))
+    ST = sak.pickleload(os.path.join(input_files,"STsignal_new.pkl"))
+    T = sak.pickleload(os.path.join(input_files,"Tsignal_new.pkl"))
+    TP = sak.pickleload(os.path.join(input_files,"TPsignal_new.pkl"))
 
-    Pamplitudes = utils.pickleload(os.path.join(input_files,"Pamplitudes_new.pkl"))
-    PQamplitudes = utils.pickleload(os.path.join(input_files,"PQamplitudes_new.pkl"))
-    QRSamplitudes = utils.pickleload(os.path.join(input_files,"QRSamplitudes_new.pkl"))
-    STamplitudes = utils.pickleload(os.path.join(input_files,"STamplitudes_new.pkl"))
-    Tamplitudes = utils.pickleload(os.path.join(input_files,"Tamplitudes_new.pkl"))
-    TPamplitudes = utils.pickleload(os.path.join(input_files,"TPamplitudes_new.pkl"))
+    Pamplitudes = sak.pickleload(os.path.join(input_files,"Pamplitudes_new.pkl"))
+    PQamplitudes = sak.pickleload(os.path.join(input_files,"PQamplitudes_new.pkl"))
+    QRSamplitudes = sak.pickleload(os.path.join(input_files,"QRSamplitudes_new.pkl"))
+    STamplitudes = sak.pickleload(os.path.join(input_files,"STamplitudes_new.pkl"))
+    Tamplitudes = sak.pickleload(os.path.join(input_files,"Tamplitudes_new.pkl"))
+    TPamplitudes = sak.pickleload(os.path.join(input_files,"TPamplitudes_new.pkl"))
 
     # 1.2. Get amplitude distribution
     Pdistribution   = scipy.stats.lognorm(*scipy.stats.lognorm.fit(np.array(list(Pamplitudes.values()))))
@@ -91,12 +91,12 @@ def main(config_file, model_name, input_files):
 
     # 1.3. Smooth all
     window = 5
-    P   = {k: utils.data.ball_scaling(utils.signal.on_off_correction(smooth(  P[k],window)),metric=utils.signal.abs_max) for k in   P}
-    PQ  = {k: utils.data.ball_scaling(utils.signal.on_off_correction(smooth( PQ[k],window)),metric=utils.signal.abs_max) for k in  PQ}
-    QRS = {k: utils.data.ball_scaling(utils.signal.on_off_correction(smooth(QRS[k],window)),metric=utils.signal.abs_max) for k in QRS}
-    ST  = {k: utils.data.ball_scaling(utils.signal.on_off_correction(smooth( ST[k],window)),metric=utils.signal.abs_max) for k in  ST}
-    T   = {k: utils.data.ball_scaling(utils.signal.on_off_correction(smooth(  T[k],window)),metric=utils.signal.abs_max) for k in   T}
-    TP  = {k: utils.data.ball_scaling(utils.signal.on_off_correction(smooth( TP[k],window)),metric=utils.signal.abs_max) for k in  TP}
+    P   = {k: sak.data.ball_scaling(sak.signal.on_off_correction(smooth(  P[k],window)),metric=sak.signal.abs_max) for k in   P}
+    PQ  = {k: sak.data.ball_scaling(sak.signal.on_off_correction(smooth( PQ[k],window)),metric=sak.signal.abs_max) for k in  PQ}
+    QRS = {k: sak.data.ball_scaling(sak.signal.on_off_correction(smooth(QRS[k],window)),metric=sak.signal.abs_max) for k in QRS}
+    ST  = {k: sak.data.ball_scaling(sak.signal.on_off_correction(smooth( ST[k],window)),metric=sak.signal.abs_max) for k in  ST}
+    T   = {k: sak.data.ball_scaling(sak.signal.on_off_correction(smooth(  T[k],window)),metric=sak.signal.abs_max) for k in   T}
+    TP  = {k: sak.data.ball_scaling(sak.signal.on_off_correction(smooth( TP[k],window)),metric=sak.signal.abs_max) for k in  TP}
 
     # 1.4. Split into train and test
     all_keys = {}
@@ -129,8 +129,8 @@ def main(config_file, model_name, input_files):
 
     ##### 2. Train folds #####
     ### Loss
-    criterion = lambda X,y,y_pred: utils.torch.loss.DiceLoss()(y_pred, y)
-    metric    = lambda X,y,y_pred: utils.torch.loss.DiceLoss()(y_pred, y)
+    criterion = lambda X,y,y_pred: sak.torch.loss.DiceLoss()(y_pred, y)
+    metric    = lambda X,y,y_pred: sak.torch.loss.DiceLoss()(y_pred, y)
 
     # Save model-generating files
     original_path = execution["save_directory"] # Store original output path for future usage
@@ -186,8 +186,8 @@ def main(config_file, model_name, input_files):
         execution["dataset"]["length"] = original_length # On synthetic data, not so useful to do intensive validation
 
         # Create dataloaders
-        loader_train = torch.utils.data.DataLoader(dataset_train, **execution["loader"])
-        loader_valid = torch.utils.data.DataLoader(dataset_valid, **execution["loader"])
+        loader_train = torch.sak.data.DataLoader(dataset_train, **execution["loader"])
+        loader_valid = torch.sak.data.DataLoader(dataset_valid, **execution["loader"])
 
         # Define model
         model = nn.ModelGraph(execution["model"]).float().cuda()
@@ -196,16 +196,16 @@ def main(config_file, model_name, input_files):
         state = {
             "epoch"         : 0,
             "device"        : torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-            "optimizer"     : utils.class_selector("torch.optim",execution["optimizer"]["class"])(model.parameters(), **execution["optimizer"]["arguments"]),
+            "optimizer"     : sak.class_selector("torch.optim",execution["optimizer"]["class"])(model.parameters(), **execution["optimizer"]["arguments"]),
             "root_dir"      : "./"
         }
         if "scheduler" in execution:
-            state["scheduler"] = utils.class_selector("torch.optim.lr_scheduler",execution["scheduler"]["class"])(state["optimizer"], **execution["scheduler"]["arguments"])
+            state["scheduler"] = sak.class_selector("torch.optim.lr_scheduler",execution["scheduler"]["class"])(state["optimizer"], **execution["scheduler"]["arguments"])
 
         # Train model (auto-saves to same location as above)
-        utils.torch.train.train_model(model,state,execution,loader_train,loader_valid,criterion,metric,smaller=True)
+        sak.torch.train.train_model(model,state,execution,loader_train,loader_valid,criterion,metric,smaller=True)
 
-    utils.save_data(all_folds_test,os.path.join(original_path,model_name,"validation_files.csv"))
+    sak.save_data(all_folds_test,os.path.join(original_path,model_name,"validation_files.csv"))
         
 
 if __name__ == "__main__":

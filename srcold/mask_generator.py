@@ -1,6 +1,6 @@
 """ Wave generator from fiducial data. Fast script for generating masks from re-annotated data"""
 
-from utils.data_structures import load_data
+from sak.data_structures import load_data
 from os.path import join
 import pandas
 import glob

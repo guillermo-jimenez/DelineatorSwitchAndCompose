@@ -1,5 +1,5 @@
 from os.path import exists
-from utils.data_structures import ExecutionInformation
+from sak.data_structures import ExecutionInformation
 from numpy.random import permutation
 from math import ceil
 
