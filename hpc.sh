@@ -13,5 +13,5 @@ source VirtEnv/DeepLearning/bin/activate;
 
 cd ~/GitHub/DelineatorSwitchAndCompose;
 
-python3 train.py --config_file ./configurations/MultiScaleUNet5Levels.json --input_files ./pickle/ --model_name Multi5All_2020_10-08;
+python3 train.py --config_file ./configurations/MultiScaleUNet5Levels.json --input_files ./pickle/ --model_name Multi5All_$(date '+%Y%m%d%H%M%S');
 
