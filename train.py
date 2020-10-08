@@ -32,7 +32,7 @@ import matplotlib.pyplot as plt
 import scipy.stats
 
 import src.data
-import utils
+import sak
 import sak.wavelet
 import sak.data
 import sak.data.augmentation
