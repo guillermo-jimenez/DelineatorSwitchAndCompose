@@ -1,11 +1,11 @@
 {
-    "root_directory": "/media/guille/DADES/DADES/EjectionFraction/Databases/",
-    "save_directory": "/media/guille/DADES/DADES/EjectionFraction/TrainedModels/",
+    "root_directory": "~/DADES/DADES/EjectionFraction/Databases/",
+    "save_directory": "~/DADES/DADES/EjectionFraction/TrainedModels/",
     "device": "cuda",
     "seed": 123456,
     "resume": false,
     "input_shape": 1024,
-    "iterator": "tqdm",
+    "iterator": "tqdm.tqdm",
     "epochs": 100,
     "sampler": {
         "shuffle": true
@@ -16,47 +16,47 @@
         "pin_memory": true
     },
     "optimizer": {
-        "class": "Adam",
+        "class": "torch.optim.Adam",
         "arguments": {
             "lr": 0.001
         }
     },
     "scheduler": {
-        "class": "ReduceLROnPlateau",
+        "class": "torch.optim.lr_scheduler.ReduceLROnPlateau",
         "arguments": {
             "factor": 0.1,
             "patience": 100
         }
     },
     "augmentation": {
-        "class": "RandomChoice",
+        "class": "torchvision.transforms.RandomChoice",
         "arguments": {},
         "types": {
-            "AdditiveWhiteGaussianNoise": [
+            "utils.torch.data.augmentation.AdditiveWhiteGaussianNoise": [
                 20,
                 0.01
             ],
-            "PowerlineNoise": [
+            "utils.torch.data.augmentation.PowerlineNoise": [
                 20,
                 500,
                 50.0
             ],
-            "BaselineNoise": [
+            "utils.torch.data.augmentation.BaselineNoise": [
                 -5,
                 500,
                 0.5
             ],
-            "ChangeAmplitude": [
+            "utils.torch.data.augmentation.ChangeAmplitude": [
                 0.01
             ],
-            "SegmentationErrors": [
+            "utils.torch.data.augmentation.SegmentationErrors": [
                 10
             ]
         }
     },
     "loss": [
         {
-            "class": "CrossEntropyLoss",
+            "class": "torch.nn.CrossEntropyLoss",
             "mapping": [
                 "sigmoid",
                 "input_0"
@@ -111,9 +111,9 @@
         "nodes": [
             {
                 "id": "encoder_lvl1",
-                "class": "CNN",
+                "class": "utils.torch.nn.CNN",
                 "operation": {
-                    "class": "SeparableConv1d"
+                    "class": "utils.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -123,16 +123,16 @@
                     ],
                     "regularization": [
                         {
-                            "class": "LeakyReLU"
+                            "class": "torch.nn.LeakyReLU"
                         },
                         {
-                            "class": "BatchNorm1d",
+                            "class": "torch.nn.BatchNorm1d",
                             "arguments": {
                                 "num_features": "update"
                             }
                         },
                         {
-                            "class": "Dropout1d",
+                            "class": "utils.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -142,16 +142,16 @@
             },
             {
                 "id": "encoder_avgpool1",
-                "class": "AvgPool1d",
+                "class": "torch.nn.AvgPool1d",
                 "arguments": {
                     "kernel_size": 2
                 }
             },
             {
                 "id": "encoder_lvl2",
-                "class": "CNN",
+                "class": "utils.torch.nn.CNN",
                 "operation": {
-                    "class": "SeparableConv1d"
+                    "class": "utils.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -161,16 +161,16 @@
                     ],
                     "regularization": [
                         {
-                            "class": "LeakyReLU"
+                            "class": "torch.nn.LeakyReLU"
                         },
                         {
-                            "class": "BatchNorm1d",
+                            "class": "torch.nn.BatchNorm1d",
                             "arguments": {
                                 "num_features": "update"
                             }
                         },
                         {
-                            "class": "Dropout1d",
+                            "class": "utils.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -180,16 +180,16 @@
             },
             {
                 "id": "encoder_avgpool2",
-                "class": "AvgPool1d",
+                "class": "torch.nn.AvgPool1d",
                 "arguments": {
                     "kernel_size": 2
                 }
             },
             {
                 "id": "encoder_lvl3",
-                "class": "CNN",
+                "class": "utils.torch.nn.CNN",
                 "operation": {
-                    "class": "SeparableConv1d"
+                    "class": "utils.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -199,16 +199,16 @@
                     ],
                     "regularization": [
                         {
-                            "class": "LeakyReLU"
+                            "class": "torch.nn.LeakyReLU"
                         },
                         {
-                            "class": "BatchNorm1d",
+                            "class": "torch.nn.BatchNorm1d",
                             "arguments": {
                                 "num_features": "update"
                             }
                         },
                         {
-                            "class": "Dropout1d",
+                            "class": "utils.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -218,16 +218,16 @@
             },
             {
                 "id": "encoder_avgpool3",
-                "class": "AvgPool1d",
+                "class": "torch.nn.AvgPool1d",
                 "arguments": {
                     "kernel_size": 2
                 }
             },
             {
                 "id": "encoder_lvl4",
-                "class": "CNN",
+                "class": "utils.torch.nn.CNN",
                 "operation": {
-                    "class": "SeparableConv1d"
+                    "class": "utils.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -237,16 +237,16 @@
                     ],
                     "regularization": [
                         {
-                            "class": "LeakyReLU"
+                            "class": "torch.nn.LeakyReLU"
                         },
                         {
-                            "class": "BatchNorm1d",
+                            "class": "torch.nn.BatchNorm1d",
                             "arguments": {
                                 "num_features": "update"
                             }
                         },
                         {
-                            "class": "Dropout1d",
+                            "class": "utils.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -256,16 +256,16 @@
             },
             {
                 "id": "encoder_avgpool4",
-                "class": "AvgPool1d",
+                "class": "torch.nn.AvgPool1d",
                 "arguments": {
                     "kernel_size": 2
                 }
             },
             {
                 "id": "encoder_lvl5",
-                "class": "CNN",
+                "class": "utils.torch.nn.CNN",
                 "operation": {
-                    "class": "SeparableConv1d"
+                    "class": "utils.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -275,16 +275,16 @@
                     ],
                     "regularization": [
                         {
-                            "class": "LeakyReLU"
+                            "class": "torch.nn.LeakyReLU"
                         },
                         {
-                            "class": "BatchNorm1d",
+                            "class": "torch.nn.BatchNorm1d",
                             "arguments": {
                                 "num_features": "update"
                             }
                         },
                         {
-                            "class": "Dropout1d",
+                            "class": "utils.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -294,20 +294,20 @@
             },
             {
                 "id": "decoder_upsample5",
-                "class": "Upsample",
+                "class": "torch.nn.Upsample",
                 "arguments": {
                     "scale_factor": 2
                 }
             },
             {
                 "id": "decoder_concat4",
-                "class": "Concatenate"
+                "class": "utils.torch.nn.Concatenate"
             },
             {
                 "id": "decoder_lvl4",
-                "class": "CNN",
+                "class": "utils.torch.nn.CNN",
                 "operation": {
-                    "class": "SeparableConv1d"
+                    "class": "utils.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -317,16 +317,16 @@
                     ],
                     "regularization": [
                         {
-                            "class": "LeakyReLU"
+                            "class": "torch.nn.LeakyReLU"
                         },
                         {
-                            "class": "BatchNorm1d",
+                            "class": "torch.nn.BatchNorm1d",
                             "arguments": {
                                 "num_features": "update"
                             }
                         },
                         {
-                            "class": "Dropout1d",
+                            "class": "utils.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -336,20 +336,20 @@
             },
             {
                 "id": "decoder_upsample4",
-                "class": "Upsample",
+                "class": "torch.nn.Upsample",
                 "arguments": {
                     "scale_factor": 2
                 }
             },
             {
                 "id": "decoder_concat3",
-                "class": "Concatenate"
+                "class": "utils.torch.nn.Concatenate"
             },
             {
                 "id": "decoder_lvl3",
-                "class": "CNN",
+                "class": "utils.torch.nn.CNN",
                 "operation": {
-                    "class": "SeparableConv1d"
+                    "class": "utils.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -359,16 +359,16 @@
                     ],
                     "regularization": [
                         {
-                            "class": "LeakyReLU"
+                            "class": "torch.nn.LeakyReLU"
                         },
                         {
-                            "class": "BatchNorm1d",
+                            "class": "torch.nn.BatchNorm1d",
                             "arguments": {
                                 "num_features": "update"
                             }
                         },
                         {
-                            "class": "Dropout1d",
+                            "class": "utils.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -378,20 +378,20 @@
             },
             {
                 "id": "decoder_upsample3",
-                "class": "Upsample",
+                "class": "torch.nn.Upsample",
                 "arguments": {
                     "scale_factor": 2
                 }
             },
             {
                 "id": "decoder_concat2",
-                "class": "Concatenate"
+                "class": "utils.torch.nn.Concatenate"
             },
             {
                 "id": "decoder_lvl2",
-                "class": "CNN",
+                "class": "utils.torch.nn.CNN",
                 "operation": {
-                    "class": "SeparableConv1d"
+                    "class": "utils.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -401,16 +401,16 @@
                     ],
                     "regularization": [
                         {
-                            "class": "LeakyReLU"
+                            "class": "torch.nn.LeakyReLU"
                         },
                         {
-                            "class": "BatchNorm1d",
+                            "class": "torch.nn.BatchNorm1d",
                             "arguments": {
                                 "num_features": "update"
                             }
                         },
                         {
-                            "class": "Dropout1d",
+                            "class": "utils.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -420,20 +420,20 @@
             },
             {
                 "id": "decoder_upsample2",
-                "class": "Upsample",
+                "class": "torch.nn.Upsample",
                 "arguments": {
                     "scale_factor": 2
                 }
             },
             {
                 "id": "decoder_concat1",
-                "class": "Concatenate"
+                "class": "utils.torch.nn.Concatenate"
             },
             {
                 "id": "decoder_lvl1",
-                "class": "CNN",
+                "class": "utils.torch.nn.CNN",
                 "operation": {
-                    "class": "SeparableConv1d"
+                    "class": "utils.torch.nn.SeparableConv1d"
                 },
                 "arguments": {
                     "channels": [
@@ -444,16 +444,16 @@
                     ],
                     "regularization": [
                         {
-                            "class": "LeakyReLU"
+                            "class": "torch.nn.LeakyReLU"
                         },
                         {
-                            "class": "BatchNorm1d",
+                            "class": "torch.nn.BatchNorm1d",
                             "arguments": {
                                 "num_features": "update"
                             }
                         },
                         {
-                            "class": "Dropout1d",
+                            "class": "utils.torch.nn.Dropout1d",
                             "arguments": {
                                 "p": 0.25
                             }
@@ -464,7 +464,7 @@
             },
             {
                 "id": "sigmoid",
-                "class": "Sigmoid"
+                "class": "torch.nn.Sigmoid"
             }
         ]
     }
