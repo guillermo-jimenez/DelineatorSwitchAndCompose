@@ -4,8 +4,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
-#SBATCH -o ~/DADES/DADES/Delineator/Logs/%N-%J.out
-#SBATCH -e ~/DADES/DADES/Delineator/Logs/%N-%J.err
+#SBATCH -o /homedtic/gjimenez/DADES/DADES/Delineator/Logs/%N-%J.out
+#SBATCH -e /homedtic/gjimenez/DADES/DADES/Delineator/Logs/%N-%J.err
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK;
 
 module load Python/3.6.4-foss-2017a;
