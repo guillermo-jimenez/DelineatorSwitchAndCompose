@@ -17,7 +17,7 @@ def sigmoid(x: float or Iterable) -> float or np.ndarray:
     return 1/(1 + np.exp(-x))
 
 
-class Dataset(torch.sak.data.Dataset):
+class Dataset(torch.utils.data.Dataset):
     '''Generates data for PyTorch'''
 
     def __init__(self, P, QRS, T, PQ, ST, TP, 

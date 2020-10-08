@@ -186,8 +186,8 @@ def main(config_file, model_name, input_files):
         execution["dataset"]["length"] = original_length # On synthetic data, not so useful to do intensive validation
 
         # Create dataloaders
-        loader_train = torch.sak.data.DataLoader(dataset_train, **execution["loader"])
-        loader_valid = torch.sak.data.DataLoader(dataset_valid, **execution["loader"])
+        loader_train = torch.utils.data.DataLoader(dataset_train, **execution["loader"])
+        loader_valid = torch.utils.data.DataLoader(dataset_valid, **execution["loader"])
 
         # Define model
         model = nn.ModelGraph(execution["model"]).float().cuda()

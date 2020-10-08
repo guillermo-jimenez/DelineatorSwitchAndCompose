@@ -467,7 +467,7 @@ class ConfigParser():
         return self.__str__()
 
 
-class DataGenerator(keras.sak.Sequence):
+class DataGenerator(keras.utils.Sequence):
     '''Generates data for Keras'''
 
     def __init__(self, labels, config, data, shuffle=True):
