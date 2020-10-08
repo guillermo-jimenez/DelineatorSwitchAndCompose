@@ -38,8 +38,7 @@
         "arguments": {},
         "types": {
             "sak.torch.signal.data.augmentation.RandomSpikes": [
-                20,
-                0.01
+                0.1
             ],
             "sak.torch.data.augmentation.AdditiveWhiteGaussianNoise": [
                 20,
