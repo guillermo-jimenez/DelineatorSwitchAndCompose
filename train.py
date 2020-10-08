@@ -195,11 +195,11 @@ def main(config_file, model_name, input_files):
         state = {
             "epoch"         : 0,
             "device"        : torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-            "optimizer"     : sak.class_selector("torch.optim",execution["optimizer"]["class"])(model.parameters(), **execution["optimizer"]["arguments"]),
+            "optimizer"     : sak.class_selector(execution["optimizer"]["class"])(model.parameters(), **execution["optimizer"]["arguments"]),
             "root_dir"      : "./"
         }
         if "scheduler" in execution:
-            state["scheduler"] = sak.class_selector("torch.optim.lr_scheduler",execution["scheduler"]["class"])(state["optimizer"], **execution["scheduler"]["arguments"])
+            state["scheduler"] = sak.class_selector(execution["scheduler"]["class"])(state["optimizer"], **execution["scheduler"]["arguments"])
 
         # Train model (auto-saves to same location as above)
         sak.torch.train.train_model(model,state,execution,loader_train,loader_valid,criterion,metric,smaller=True)
