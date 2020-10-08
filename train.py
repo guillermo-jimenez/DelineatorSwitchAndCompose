@@ -128,8 +128,8 @@ def main(config_file, model_name, input_files):
 
     ##### 2. Train folds #####
     ### Loss
-    criterion = lambda X,y,y_pred: sak.torch.loss.DiceLoss()(y_pred, y)
-    metric    = lambda X,y,y_pred: sak.torch.loss.DiceLoss()(y_pred, y)
+    criterion = lambda X,y,y_pred: sak.torch.nn.DiceLoss()(y_pred, y)
+    metric    = lambda X,y,y_pred: sak.torch.nn.DiceLoss()(y_pred, y)
 
     # Save model-generating files
     original_path = execution["save_directory"] # Store original output path for future usage
