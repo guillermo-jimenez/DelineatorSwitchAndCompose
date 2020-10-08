@@ -7,7 +7,6 @@ import skimage.segmentation
 import sklearn.preprocessing
 import sklearn.model_selection
 import math
-import shutil
 import pathlib
 import glob
 import shutil
@@ -64,6 +63,9 @@ def main(config_file, model_name, input_files):
     # 1.0. Open configuration file
     with open(config_file, "r") as f:
         execution = json.load(f)
+
+    execution["root_directory"] = os.path.expanduser(execution["root_directory"])
+    execution["save_directory"] = os.path.expanduser(execution["save_directory"])
 
     # 1.1. Load individual segments
     P = sak.pickleload(os.path.join(input_files,"Psignal_new.pkl"))
@@ -132,14 +134,14 @@ def main(config_file, model_name, input_files):
     metric    = lambda X,y,y_pred: sak.torch.nn.DiceLoss()(y_pred, y)
 
     # Save model-generating files
-    original_path = execution["save_directory"] # Store original output path for future usage
+    target_path = execution["save_directory"] # Store original output path for future usage
     original_length = execution["dataset"]["length"]
-    if not os.path.isdir(os.path.join(original_path,model_name)):
-        pathlib.Path(os.path.join(original_path,model_name)).mkdir(parents=True, exist_ok=True)
-    shutil.copyfile("./train.py",os.path.join(original_path,model_name,"train.py"))
-    shutil.copyfile("./src/data.py",os.path.join(original_path,model_name,"data.py"))
-    shutil.copyfile("./src/metrics.py",os.path.join(original_path,model_name,"metrics.py"))
-    shutil.copyfile(config_file,os.path.join(original_path,model_name,os.path.split(config_file)[1]))
+    if not os.path.isdir(os.path.join(target_path,model_name)):
+        pathlib.Path(os.path.join(target_path,model_name)).mkdir(parents=True, exist_ok=True)
+    shutil.copyfile("./train.py",os.path.join(target_path,model_name,"train.py"))
+    shutil.copyfile("./src/data.py",os.path.join(target_path,model_name,"data.py"))
+    shutil.copyfile("./src/metrics.py",os.path.join(target_path,model_name,"metrics.py"))
+    shutil.copyfile(config_file,os.path.join(target_path,model_name,os.path.split(config_file)[1]))
     
     # Structure to save splitter
     all_folds_test = {}
@@ -170,7 +172,7 @@ def main(config_file, model_name, input_files):
         TPvalid  = {k:  TP[k] for k in  TP if k in valid_keys}
 
         # Prepare folders
-        execution["save_directory"] = os.path.join(original_path, model_name, "fold_{}".format(i+1))
+        execution["save_directory"] = os.path.join(target_path, model_name, "fold_{}".format(i+1))
         if not os.path.isdir(execution["save_directory"]):
             pathlib.Path(execution["save_directory"]).mkdir(parents=True, exist_ok=True)
         
@@ -204,7 +206,7 @@ def main(config_file, model_name, input_files):
         # Train model (auto-saves to same location as above)
         sak.torch.train.train_model(model,state,execution,loader_train,loader_valid,criterion,metric,smaller=True)
 
-    sak.save_data(all_folds_test,os.path.join(original_path,model_name,"validation_files.csv"))
+    sak.save_data(all_folds_test,os.path.join(target_path,model_name,"validation_files.csv"))
         
 
 if __name__ == "__main__":
