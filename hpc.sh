@@ -11,7 +11,7 @@
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK;
 
 module load Python/3.6.4-foss-2017a;
-source ~ /VirtEnv/DeepLearning/bin/activate;
+source ~/VirtEnv/DeepLearning/bin/activate;
 
 cd ~/GitHub/DelineatorSwitchAndCompose;
 
