@@ -126,10 +126,10 @@
             {
                 "id": "encoder_lvl1",
                 "class": "sak.torch.nn.CNN",
-                "operation": {
-                    "class": "sak.torch.nn.SeparableConv1d"
-                },
                 "arguments": {
+                    "operation": {
+                        "class": "sak.torch.nn.SeparableConv1d"
+                    },
                     "channels": [
                         1,
                         16,
@@ -164,10 +164,10 @@
             {
                 "id": "encoder_lvl2",
                 "class": "sak.torch.nn.CNN",
-                "operation": {
-                    "class": "sak.torch.nn.SeparableConv1d"
-                },
                 "arguments": {
+                    "operation": {
+                        "class": "sak.torch.nn.SeparableConv1d"
+                    },
                     "channels": [
                         16,
                         32,
@@ -202,10 +202,10 @@
             {
                 "id": "encoder_lvl3",
                 "class": "sak.torch.nn.CNN",
-                "operation": {
-                    "class": "sak.torch.nn.SeparableConv1d"
-                },
                 "arguments": {
+                    "operation": {
+                        "class": "sak.torch.nn.SeparableConv1d"
+                    },
                     "channels": [
                         32,
                         64,
@@ -240,10 +240,10 @@
             {
                 "id": "encoder_lvl4",
                 "class": "sak.torch.nn.CNN",
-                "operation": {
-                    "class": "sak.torch.nn.SeparableConv1d"
-                },
                 "arguments": {
+                    "operation": {
+                        "class": "sak.torch.nn.SeparableConv1d"
+                    },
                     "channels": [
                         64,
                         128,
@@ -278,10 +278,10 @@
             {
                 "id": "encoder_lvl5",
                 "class": "sak.torch.nn.CNN",
-                "operation": {
-                    "class": "sak.torch.nn.SeparableConv1d"
-                },
                 "arguments": {
+                    "operation": {
+                        "class": "sak.torch.nn.SeparableConv1d"
+                    },
                     "channels": [
                         128,
                         256,
@@ -320,10 +320,10 @@
             {
                 "id": "decoder_lvl4",
                 "class": "sak.torch.nn.CNN",
-                "operation": {
-                    "class": "sak.torch.nn.SeparableConv1d"
-                },
                 "arguments": {
+                    "operation": {
+                        "class": "sak.torch.nn.SeparableConv1d"
+                    },
                     "channels": [
                         384,
                         128,
@@ -362,10 +362,10 @@
             {
                 "id": "decoder_lvl3",
                 "class": "sak.torch.nn.CNN",
-                "operation": {
-                    "class": "sak.torch.nn.SeparableConv1d"
-                },
                 "arguments": {
+                    "operation": {
+                        "class": "sak.torch.nn.SeparableConv1d"
+                    },
                     "channels": [
                         192,
                         64,
@@ -404,10 +404,10 @@
             {
                 "id": "decoder_lvl2",
                 "class": "sak.torch.nn.CNN",
-                "operation": {
-                    "class": "sak.torch.nn.SeparableConv1d"
-                },
                 "arguments": {
+                    "operation": {
+                        "class": "sak.torch.nn.SeparableConv1d"
+                    },
                     "channels": [
                         96,
                         32,
@@ -467,10 +467,10 @@
             {
                 "id": "decoder_lvl1",
                 "class": "sak.torch.nn.CNN",
-                "operation": {
-                    "class": "sak.torch.nn.SeparableConv1d"
-                },
                 "arguments": {
+                    "operation": {
+                        "class": "sak.torch.nn.SeparableConv1d"
+                    },
                     "channels": [
                         496,
                         16,
