@@ -16,7 +16,7 @@
         "N": 2048
     },
     "loader": {
-        "batch_size": 128,
+        "batch_size": 64,
         "num_workers": 4,
         "pin_memory": true
     },
