@@ -206,7 +206,7 @@ def main(config_file, model_name, input_files):
         # Train model (auto-saves to same location as above)
         sak.torch.train.train_model(model,state,execution,loader_train,loader_valid,criterion,metric,smaller=True)
 
-    sak.save_data(os.path.join(target_path,model_name,"validation_files.csv"),all_folds_test)
+    sak.save_data(all_folds_test,os.path.join(target_path,model_name,"validation_files.csv"))
         
 
 if __name__ == "__main__":
