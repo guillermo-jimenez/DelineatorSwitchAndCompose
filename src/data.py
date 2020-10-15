@@ -17,6 +17,55 @@ def sigmoid(x: float or Iterable) -> float or np.ndarray:
     return 1/(1 + np.exp(-x))
 
 
+class DatasetQTDB(torch.utils.data.Dataset):
+    '''Generates data for PyTorch'''
+
+    def __init__(self, x, y, window, stride, dtype='float32'):
+        '''Initialization'''
+        assert set(x.keys()) == set(y.keys())
+        # Store inputs
+        self.window = window
+        self.stride = stride
+        self.dtype = dtype
+        self.x = x
+        self.y = y
+        self.keys = list(x)
+
+        # Compute size
+        self.window_distribution = np.cumsum([0] + [(x[k].size - window + stride)//stride for k in x])
+        self.num_windows = self.window_distribution[-1] # Extremely small performance gain
+
+    def __len__(self):
+        '''Denotes the number of batches per epoch'''
+        return self.num_windows
+    
+    def __get_key_window(self, i):
+        """Retrieve an index's key and number of window"""
+        loc = np.argmax(i < self.window_distribution)
+        key = self.keys[loc-1]
+        win = i-self.window_distribution[loc-1]
+        
+        return key,win
+    
+    def __getitem__(self, i):
+        '''Generates one datapoint''' 
+        # Retrieve window location
+        key,n_window = self.__get_key_window(i)
+
+        # Compute onsets and offsets for localization
+        on  = n_window*self.stride
+        off = on + self.window
+        
+        # Retrieve data
+        x = self.x[key][:,on:off]
+        y = self.y[key][:,on:off]
+        
+        if i == self.num_windows:
+            raise StopIteration
+        
+        return x,y
+
+
 class Dataset(torch.utils.data.Dataset):
     '''Generates data for PyTorch'''
 
