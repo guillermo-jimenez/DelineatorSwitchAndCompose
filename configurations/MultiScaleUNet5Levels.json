@@ -5,7 +5,7 @@
     "seed": 123456,
     "resume": false,
     "input_shape": 1024,
-    "iterator": "tqdm",
+    "iterator": "tqdm.tqdm",
     "epochs": 100,
     "sampler": {
         "shuffle": true
