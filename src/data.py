@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, List, Iterable
+from typing import Callable, Tuple, List, Iterable, Union
 import warnings
 import torch
 import torch.utils
