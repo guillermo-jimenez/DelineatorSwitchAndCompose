@@ -8,6 +8,10 @@
 #SBATCH -o /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%J_%A_%a.out
 #SBATCH -e /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%J_%A_%a.err
 
+ADDER=0000
+
+SLURM_ARRAY_TASK_ID=$(expr $SLURM_ARRAY_TASK_ID + $ADDER);
+
 module load Python/3.6.4-foss-2017a;
 module load libGLU/9.0.0-foss-2017a;
 source ~/VirtEnv/DeepLearning3/bin/activate;
