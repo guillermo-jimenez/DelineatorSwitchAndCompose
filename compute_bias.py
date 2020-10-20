@@ -29,7 +29,7 @@ if __name__ == '__main__':
     # Store as simple variables
     basedir = os.path.expanduser(args.basedir) # '/media/guille/DADES/DADES/PhysioNet/QTDB/manual0/'
     outdir = os.path.expanduser(args.outdir) # '/media/guille/DADES/DADES/PhysioNet/QTDB/manual0/bias/'
-    signal_id = args.signal_id-1 # Variable, HPC array
+    signal_id = args.signal_id # Variable, HPC array
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ LOAD DATASET ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     print("LOAD DATASET")
