@@ -9,6 +9,7 @@
 #SBATCH -e /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%J_%A_%a.err
 
 module load Python/3.6.4-foss-2017a;
+module load libGLU/9.0.0-foss-2017a;
 source ~/VirtEnv/DeepLearning3/bin/activate;
 
 cd ~/GitHub/DelineatorSwitchAndCompose;
