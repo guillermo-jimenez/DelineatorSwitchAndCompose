@@ -1,6 +1,7 @@
 from typing import List
 import numpy as np
-
+import sak
+import sak.signal
 
 def dice_score(input: np.ndarray, target: np.ndarray) -> float:
     intersection = (input * target).sum()
@@ -96,8 +97,8 @@ def compute_metrics(input_onsets: np.ndarray, input_offsets: np.ndarray,
             tp += 1
             
             # Compute the onset-offset errors
-            onset_error.append(int(target_onsets[i]  - input_onsets[corr[i]]))
-            offset_error.append(int(target_offsets[i] - input_offsets[corr[i]]))
+            onset_error.append(int(sak.signal.signed_minima(target_onsets[i]  - input_onsets[corr[i]])))
+            offset_error.append(int(sak.signal.signed_minima(target_offsets[i] - input_offsets[corr[i]])))
             
         # If any GT beat has a correspondence to more than one segmented beat, 
         #     the rest of the pairs have to be false positives (Martinez et al.)
