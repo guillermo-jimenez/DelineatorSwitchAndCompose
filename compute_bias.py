@@ -210,6 +210,6 @@ if __name__ == '__main__':
                 offsets99 += off99
 
             # Save files
-            out_dir = os.path.join(outdir,k1,str(signal_id),"{}-{}.csv".format(k2,wave))
+            out_dir = os.path.join(outdir,k1,str(i),"{}-{}.csv".format(k2,wave))
             pathlib.Path(os.path.split(out_dir)[0]).mkdir(parents=True, exist_ok=True) # Make necessary dirs
             sak.save_data({"onsets95": onsets95,"offsets95": offsets95, "onsets99": onsets95,"offsets99": offsets99}, out_dir)

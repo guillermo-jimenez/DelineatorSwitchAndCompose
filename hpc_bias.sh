@@ -3,10 +3,10 @@
 #SBATCH -p short
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=1G
+#SBATCH --mem-per-cpu=2G
 #SBATCH --array=0000-1000
-#SBATCH -o /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%J_%A_%a.out
-#SBATCH -e /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%J_%A_%a.err
+#SBATCH -o /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%A_%a.out
+#SBATCH -e /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%A_%a.err
 
 ADDER=0000
 
