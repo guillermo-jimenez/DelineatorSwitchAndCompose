@@ -75,7 +75,7 @@
             {
                 "name": "forward",
                 "inputs": [
-                    "encoder_lvl1"
+                    "x"
                 ],
                 "outputs": [
                     "sigmoid"
@@ -83,6 +83,7 @@
             }
         ],
         "edges": [
+            ["x", "encoder_lvl1"],
             ["encoder_lvl1", "encoder_avgpool1"],
             ["encoder_avgpool1", "encoder_lvl2"],
             ["encoder_lvl2", "encoder_avgpool2"],

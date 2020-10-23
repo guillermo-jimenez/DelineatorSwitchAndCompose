@@ -16,7 +16,7 @@
         "N": 2048
     },
     "loader": {
-        "batch_size": 256,
+        "batch_size": 64,
         "num_workers": 4,
         "pin_memory": true
     },
@@ -75,7 +75,7 @@
             {
                 "name": "forward",
                 "inputs": [
-                    "encoder_1_lvl1"
+                    "y"
                 ],
                 "outputs": [
                     "sigmoid"
@@ -83,64 +83,77 @@
             }
         ],
         "edges": [
-            ["encoder_1_lvl1",       "encoder_1_avgpool1"],
-            ["encoder_1_avgpool1",   "encoder_1_lvl2"],
-            ["encoder_1_lvl2",       "encoder_1_avgpool2"],
-            ["encoder_1_avgpool2",   "encoder_1_lvl3"],
-            ["encoder_1_lvl3",       "encoder_1_avgpool3"],
-            ["encoder_1_avgpool3",   "encoder_1_lvl4"],
-            ["encoder_1_lvl4",       "encoder_1_avgpool4"],
-            ["encoder_1_avgpool4",   "encoder_1_lvl5"],
-            ["encoder_1_lvl5",       "decoder_1_upsample5"],
-            ["decoder_1_upsample5", ["decoder_1_upsample5","encoder_1_lvl4"]],
-            ["encoder_1_lvl4",      ["decoder_1_upsample5","encoder_1_lvl4"]],
-            [["decoder_1_upsample5", "encoder_1_lvl4"],"decoder_1_concat4"],
-            ["decoder_1_concat4",    "decoder_1_lvl4"],
-            ["decoder_1_lvl4",       "decoder_1_upsample4"],
-            ["decoder_1_upsample4", ["decoder_1_upsample4","encoder_1_lvl3"]],
-            ["encoder_1_lvl3",      ["decoder_1_upsample4","encoder_1_lvl3"]],
-            [["decoder_1_upsample4", "encoder_1_lvl3"],"decoder_1_concat3"],
-            ["decoder_1_concat3",    "decoder_1_lvl3"],
-            ["decoder_1_lvl3",       "decoder_1_upsample3"],
-            ["decoder_1_upsample3", ["decoder_1_upsample3","encoder_1_lvl2"]],
-            ["encoder_1_lvl2",      ["decoder_1_upsample3","encoder_1_lvl2"]],
-            [["decoder_1_upsample3", "encoder_1_lvl2"],"decoder_1_concat2"],
-            ["decoder_1_concat2",    "decoder_1_lvl2"],
-            ["decoder_1_lvl2",       "decoder_1_upsample2"],
-            ["decoder_1_upsample2", ["decoder_1_upsample2","encoder_1_lvl1"]],
-            ["encoder_1_lvl1",      ["decoder_1_upsample2","encoder_1_lvl1"]],
-            [["decoder_1_upsample2", "encoder_1_lvl1"],"decoder_1_concat1"],
-            ["decoder_1_concat1",    "decoder_1_lvl1"],
-            ["decoder_1_lvl1",       "encoder_2_lvl1"],
-            ["encoder_2_lvl1",       "encoder_2_avgpool1"],
-            ["encoder_2_avgpool1",   "encoder_2_lvl2"],
-            ["encoder_2_lvl2",       "encoder_2_avgpool2"],
-            ["encoder_2_avgpool2",   "encoder_2_lvl3"],
-            ["encoder_2_lvl3",       "encoder_2_avgpool3"],
-            ["encoder_2_avgpool3",   "encoder_2_lvl4"],
-            ["encoder_2_lvl4",       "encoder_2_avgpool4"],
-            ["encoder_2_avgpool4",   "encoder_2_lvl5"],
-            ["encoder_2_lvl5",       "decoder_2_upsample5"],
-            ["decoder_2_upsample5", ["decoder_2_upsample5","encoder_2_lvl4"]],
-            ["encoder_2_lvl4",      ["decoder_2_upsample5","encoder_2_lvl4"]],
-            [["decoder_2_upsample5", "encoder_2_lvl4"],"decoder_2_concat4"],
-            ["decoder_2_concat4",    "decoder_2_lvl4"],
-            ["decoder_2_lvl4",       "decoder_2_upsample4"],
-            ["decoder_2_upsample4", ["decoder_2_upsample4","encoder_2_lvl3"]],
-            ["encoder_2_lvl3",      ["decoder_2_upsample4","encoder_2_lvl3"]],
-            [["decoder_2_upsample4", "encoder_2_lvl3"],"decoder_2_concat3"],
-            ["decoder_2_concat3",    "decoder_2_lvl3"],
-            ["decoder_2_lvl3",       "decoder_2_upsample3"],
-            ["decoder_2_upsample3", ["decoder_2_upsample3","encoder_2_lvl2"]],
-            ["encoder_2_lvl2",      ["decoder_2_upsample3","encoder_2_lvl2"]],
-            [["decoder_2_upsample3", "encoder_2_lvl2"],"decoder_2_concat2"],
-            ["decoder_2_concat2",    "decoder_2_lvl2"],
-            ["decoder_2_lvl2",       "decoder_2_upsample2"],
-            ["decoder_2_upsample2", ["decoder_2_upsample2","encoder_2_lvl1"]],
-            ["encoder_2_lvl1",      ["decoder_2_upsample2","encoder_2_lvl1"]],
-            [["decoder_2_upsample2", "encoder_2_lvl1"],"decoder_2_concat1"],
-            ["decoder_2_concat1",    "decoder_2_lvl1"],
-            ["decoder_2_lvl1",      "sigmoid"]
+            ["y",                                           "encoder_1_lvl1"],
+            ["encoder_1_lvl1",                              "encoder_1_avgpool1"],
+            ["encoder_1_avgpool1",                          "encoder_1_lvl2"],
+            ["encoder_1_lvl2",                              "encoder_1_avgpool2"],
+            ["encoder_1_avgpool2",                          "encoder_1_lvl3"],
+            ["encoder_1_lvl3",                              "encoder_1_avgpool3"],
+            ["encoder_1_avgpool3",                          "encoder_1_lvl4"],
+            ["encoder_1_lvl4",                              "encoder_1_avgpool4"],
+            ["encoder_1_avgpool4",                          "encoder_1_lvl5"],
+            ["encoder_1_lvl5",                              "decoder_1_upsample5"],
+            ["decoder_1_upsample5",                         ["decoder_1_upsample5","encoder_1_lvl4"]],
+            ["encoder_1_lvl4",                              ["decoder_1_upsample5","encoder_1_lvl4"]],
+            [["decoder_1_upsample5", "encoder_1_lvl4"],     "decoder_1_concat4"],
+            ["decoder_1_concat4",                           "decoder_1_lvl4"],
+            ["decoder_1_lvl4",                              "decoder_1_upsample4"],
+            ["decoder_1_upsample4",                         ["decoder_1_upsample4","encoder_1_lvl3"]],
+            ["encoder_1_lvl3",                              ["decoder_1_upsample4","encoder_1_lvl3"]],
+            [["decoder_1_upsample4", "encoder_1_lvl3"],     "decoder_1_concat3"],
+            ["decoder_1_concat3",                           "decoder_1_lvl3"],
+            ["decoder_1_lvl3",                              "decoder_1_upsample3"],
+            ["decoder_1_upsample3",                         ["decoder_1_upsample3","encoder_1_lvl2"]],
+            ["encoder_1_lvl2",                              ["decoder_1_upsample3","encoder_1_lvl2"]],
+            [["decoder_1_upsample3", "encoder_1_lvl2"],     "decoder_1_concat2"],
+            ["decoder_1_concat2",                           "decoder_1_lvl2"],
+            ["decoder_1_lvl2",                              "decoder_1_upsample2"],
+            ["decoder_1_upsample2",                         ["decoder_1_upsample2","encoder_1_lvl1"]],
+            ["encoder_1_lvl1",                              ["decoder_1_upsample2","encoder_1_lvl1"]],
+            [["decoder_1_upsample2", "encoder_1_lvl1"],     "decoder_1_concat1"],
+            ["decoder_1_concat1",                           "decoder_1_lvl1"],
+            ["decoder_1_lvl2",                              ["decoder_1_lvl2","encoder_2_avgpool1"]],
+            ["encoder_2_avgpool1",                          ["decoder_1_lvl2","encoder_2_avgpool1"]],
+            ["decoder_1_lvl3",                              ["decoder_1_lvl3","encoder_2_avgpool2"]],
+            ["encoder_2_avgpool2",                          ["decoder_1_lvl3","encoder_2_avgpool2"]],
+            ["decoder_1_lvl4",                              ["decoder_1_lvl4","encoder_2_avgpool3"]],
+            ["encoder_2_avgpool3",                          ["decoder_1_lvl4","encoder_2_avgpool3"]],
+            ["encoder_1_lvl5",                              ["encoder_1_lvl5","encoder_2_avgpool4"]],
+            ["encoder_2_avgpool4",                          ["encoder_1_lvl5","encoder_2_avgpool4"]],
+            [["decoder_1_lvl2","encoder_2_avgpool1"],       "encoder_2_concat2"],
+            [["decoder_1_lvl3","encoder_2_avgpool2"],       "encoder_2_concat3"],
+            [["decoder_1_lvl4","encoder_2_avgpool3"],       "encoder_2_concat4"],
+            [["encoder_1_lvl5","encoder_2_avgpool4"],       "encoder_2_concat5"],
+            ["decoder_1_lvl1",                              "encoder_2_lvl1"],
+            ["encoder_2_lvl1",                              "encoder_2_avgpool1"],
+            ["encoder_2_concat2",                           "encoder_2_lvl2"],
+            ["encoder_2_lvl2",                              "encoder_2_avgpool2"],
+            ["encoder_2_concat3",                           "encoder_2_lvl3"],
+            ["encoder_2_lvl3",                              "encoder_2_avgpool3"],
+            ["encoder_2_concat4",                           "encoder_2_lvl4"],
+            ["encoder_2_lvl4",                              "encoder_2_avgpool4"],
+            ["encoder_2_concat5",                           "encoder_2_lvl5"],
+            ["encoder_2_lvl5",                              "decoder_2_upsample5"],
+            ["decoder_2_upsample5",                         ["decoder_2_upsample5","encoder_2_lvl4"]],
+            ["encoder_2_lvl4",                              ["decoder_2_upsample5","encoder_2_lvl4"]],
+            [["decoder_2_upsample5", "encoder_2_lvl4"],     "decoder_2_concat4"],
+            ["decoder_2_concat4",                           "decoder_2_lvl4"],
+            ["decoder_2_lvl4",                              "decoder_2_upsample4"],
+            ["decoder_2_upsample4",                         ["decoder_2_upsample4","encoder_2_lvl3"]],
+            ["encoder_2_lvl3",                              ["decoder_2_upsample4","encoder_2_lvl3"]],
+            [["decoder_2_upsample4", "encoder_2_lvl3"],     "decoder_2_concat3"],
+            ["decoder_2_concat3",                           "decoder_2_lvl3"],
+            ["decoder_2_lvl3",                              "decoder_2_upsample3"],
+            ["decoder_2_upsample3",                         ["decoder_2_upsample3","encoder_2_lvl2"]],
+            ["encoder_2_lvl2",                              ["decoder_2_upsample3","encoder_2_lvl2"]],
+            [["decoder_2_upsample3", "encoder_2_lvl2"],     "decoder_2_concat2"],
+            ["decoder_2_concat2",                           "decoder_2_lvl2"],
+            ["decoder_2_lvl2",                              "decoder_2_upsample2"],
+            ["decoder_2_upsample2",                         ["decoder_2_upsample2","encoder_2_lvl1"]],
+            ["encoder_2_lvl1",                              ["decoder_2_upsample2","encoder_2_lvl1"]],
+            [["decoder_2_upsample2", "encoder_2_lvl1"],     "decoder_2_concat1"],
+            ["decoder_2_concat1",                           "decoder_2_lvl1"],
+            ["decoder_2_lvl1",                              "sigmoid"]
         ],
         "nodes": [
             {
@@ -473,8 +486,7 @@
                     "channels": [
                         48,
                         16,
-                        16,
-                        3
+                        16
                     ],
                     "regularization": [
                         {
@@ -496,6 +508,22 @@
                 }
             },
             {
+                "id": "encoder_2_concat2",
+                "class": "sak.torch.nn.Concatenate"
+            },
+            {
+                "id": "encoder_2_concat3",
+                "class": "sak.torch.nn.Concatenate"
+            },
+            {
+                "id": "encoder_2_concat4",
+                "class": "sak.torch.nn.Concatenate"
+            },
+            {
+                "id": "encoder_2_concat5",
+                "class": "sak.torch.nn.Concatenate"
+            },
+            {
                 "id": "encoder_2_lvl1",
                 "class": "sak.torch.nn.CNN",
                 "arguments": {
@@ -503,7 +531,7 @@
                         "class": "sak.torch.nn.SeparableConv1d"
                     },
                     "channels": [
-                        1,
+                        16,
                         16,
                         16
                     ],
@@ -541,7 +569,7 @@
                         "class": "sak.torch.nn.SeparableConv1d"
                     },
                     "channels": [
-                        16,
+                        48,
                         32,
                         32
                     ],
@@ -579,7 +607,7 @@
                         "class": "sak.torch.nn.SeparableConv1d"
                     },
                     "channels": [
-                        32,
+                        96,
                         64,
                         64
                     ],
@@ -617,7 +645,7 @@
                         "class": "sak.torch.nn.SeparableConv1d"
                     },
                     "channels": [
-                        64,
+                        192,
                         128,
                         128
                     ],
@@ -655,7 +683,7 @@
                         "class": "sak.torch.nn.SeparableConv1d"
                     },
                     "channels": [
-                        128,
+                        384,
                         256,
                         256
                     ],
