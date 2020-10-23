@@ -29,53 +29,59 @@
         }
     },
     "augmentation": {
-        "class": "torchvision.transforms.RandomChoice",
-        "arguments": {},
-        "types": {
-            "sak.torch.data.augmentation.AdditiveWhiteGaussianNoise": [
-                20,
-                0.01
-            ],
-            "sak.torch.data.augmentation.PowerlineNoise": [
-                20,
-                500,
-                50.0
-            ],
-            "sak.torch.data.augmentation.BaselineNoise": [
-                -5,
-                500,
-                0.5
-            ],
-            "sak.torch.data.augmentation.ChangeAmplitude": [
-                0.01
-            ],
-            "sak.torch.data.augmentation.SegmentationErrors": [
-                10
-            ]
+        "class": "sak.torch.Mapper",
+        "arguments": {
+            "json": {
+                "input_mappings": [
+                    ["inputs","x"]
+                ],
+                "output_mappings": [
+                    ["inputs","x"]
+                ],
+                "class": "sak.torch.data.augmentation.AugmentationComposer",
+                "arguments": {
+                    "class": "torchvision.transforms.RandomChoice",
+                    "transforms": {
+                        "sak.torch.signal.data.augmentation.RandomSpikes": [
+                            0.1
+                        ],
+                        "sak.torch.data.augmentation.AdditiveWhiteGaussianNoise": [
+                            20,
+                            0.01
+                        ],
+                        "sak.torch.data.augmentation.PowerlineNoise": [
+                            20,
+                            500,
+                            50.0
+                        ],
+                        "sak.torch.data.augmentation.BaselineNoise": [
+                            -5,
+                            500,
+                            0.5
+                        ],
+                        "sak.torch.data.augmentation.ChangeAmplitude": [
+                            0.01
+                        ],
+                        "sak.torch.data.augmentation.SegmentationErrors": [
+                            10
+                        ]
+                    }
+                }
+            }
         }
     },
-    "loss": [
-        {
-            "class": "torch.nn.MSELoss",
-            "arguments": {
-                "reduction": "mean"
-            },
-            "mapping": [
-                "output_3",
-                "input_0"
-            ],
-            "weight": 5
-        },
-        {
-            "class": "KLDivergence",
-            "arguments": {},
-            "mapping": [
-                "output_0",
-                "output_1"
-            ],
-            "weight": 0.01
+    "loss": {
+        "class": "sak.torch.Mapper",
+        "arguments": {
+            "json": {
+                "input_mappings": [
+                    ["outputs","sigmoid"],
+                    ["inputs","y"]
+                ],
+                "class": "sak.torch.nn.DiceLoss"
+            }
         }
-    ],
+    },
     "model": {
         "type": "graph",
         "functions": [
