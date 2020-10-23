@@ -63,7 +63,7 @@ class DatasetQTDB(torch.utils.data.Dataset):
         if i == self.num_windows:
             raise StopIteration
         
-        return x,y
+        return {"x": x.astype('float32'), "y": y.astype('float32')}
 
 
 class Dataset(torch.utils.data.Dataset):
@@ -217,8 +217,15 @@ class Dataset(torch.utils.data.Dataset):
         if self.apply_smoothing: signal = self.smooth(signal, self.joint_smoothing_window)
 
         # 6. Return
-        if self.return_beats: return signal[None,].astype('float32'), masks, beats, beat_types, dict_globals
-        else:                 return signal[None,].astype('float32'), masks
+        out_dict = {}
+        out_dict['x'] = signal[None,].astype('float32')
+        out_dict['y'] = masks.astype('float32')
+        if self.return_beats:
+            out_dict['beats'] = beats
+            out_dict['beat_types'] = beat_types
+            out_dict['dict_globals'] = dict_globals
+        
+        return out_dict
 
 
     def generate_globals(self):

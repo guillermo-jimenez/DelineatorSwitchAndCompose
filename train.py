@@ -204,7 +204,7 @@ def main(config_file, model_name, input_files):
             state["scheduler"] = sak.class_selector(execution["scheduler"]["class"])(state["optimizer"], **execution["scheduler"]["arguments"])
 
         # Train model (auto-saves to same location as above)
-        sak.torch.train.train_model(model,state,execution,loader_train,loader_valid,criterion,metric,smaller=True)
+        sak.torch.train.train_valid_model(model,state,execution,loader_train,loader_valid)
 
     sak.save_data(all_folds_test,os.path.join(target_path,model_name,"validation_files.csv"))
         
