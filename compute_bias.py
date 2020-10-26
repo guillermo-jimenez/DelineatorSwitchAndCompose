@@ -135,6 +135,8 @@ if __name__ == '__main__':
         if i >= len(wave_on[k1]): continue
         fundamental = dataset[k1][wave_on[k1][i]:wave_off[k1][i]].values
         fundamental = sak.signal.on_off_correction(fundamental)
+
+        out_wave = {}
         
         for k2 in tqdm.tqdm(dataset,total=dataset.shape[1]):
             # if the specific wave has nothing for the key, pass
@@ -209,7 +211,12 @@ if __name__ == '__main__':
                 onsets99 += on99
                 offsets99 += off99
 
-            # Save files
-            out_dir = os.path.join(outdir,k1,str(i),"{}-{}.csv".format(k2,wave))
-            pathlib.Path(os.path.split(out_dir)[0]).mkdir(parents=True, exist_ok=True) # Make necessary dirs
-            sak.save_data({"onsets95": onsets95,"offsets95": offsets95, "onsets99": onsets95,"offsets99": offsets99}, out_dir)
+            if len(onsets95) != 0:  out_wave[k2+',onsets95']  = onsets95
+            if len(offsets95) != 0: out_wave[k2+',offsets95'] = offsets95
+            if len(onsets99) != 0:  out_wave[k2+',onsets99']  = onsets99
+            if len(offsets99) != 0: out_wave[k2+',offsets99'] = offsets99
+
+        # Save files
+        out_dir = os.path.join(outdir,k1,"{}_{}.csv".format(wave,i))
+        pathlib.Path(os.path.split(out_dir)[0]).mkdir(parents=True, exist_ok=True) # Make necessary dirs
+        sak.save_data(out_wave, out_dir)

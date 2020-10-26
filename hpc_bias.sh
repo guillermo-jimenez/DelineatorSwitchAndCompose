@@ -8,9 +8,7 @@
 #SBATCH -o /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%A_%a.out
 #SBATCH -e /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%A_%a.err
 
-ADDER=0000
-
-SLURM_ARRAY_TASK_ID=$(expr $SLURM_ARRAY_TASK_ID + $ADDER);
+ORIGINAL_SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID
 
 module load Python/3.6.4-foss-2017a;
 module load libGLU/9.0.0-foss-2017a;
@@ -18,4 +16,8 @@ source ~/VirtEnv/DeepLearning3/bin/activate;
 
 cd ~/GitHub/DelineatorSwitchAndCompose;
 
-python3 compute_bias.py --basedir /homedtic/gjimenez/DADES/DADES/PhysioNet/QTDB/manual0_bias --outdir /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS --signal_id ${SLURM_ARRAY_TASK_ID}
+for i in `seq 0 1000 10000`; 
+do 
+    SLURM_ARRAY_TASK_ID=$(expr $ORIGINAL_SLURM_ARRAY_TASK_ID + $i);
+    python3 compute_bias.py --basedir /homedtic/gjimenez/DADES/DADES/PhysioNet/QTDB/manual0_bias --outdir /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS --signal_id ${SLURM_ARRAY_TASK_ID};
+done
