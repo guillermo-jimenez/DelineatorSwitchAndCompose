@@ -76,15 +76,38 @@
         }
     },
     "loss": {
-        "class": "sak.torch.Mapper",
+        "class": "sak.torch.nn.CompoundLoss",
         "arguments": {
-            "json": {
-                "input_mappings": [
-                    ["outputs","sigmoid"],
-                    ["inputs","y"]
-                ],
-                "class": "sak.torch.nn.DiceLoss"
-            }
+            "operations": [
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "json": {
+                            "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                            "class": "sak.torch.nn.DiceLoss"
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "json": {
+                            "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                            "class": "sak.torch.nn.BoundDiceLoss"
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "json": {
+                            "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                            "class": "sak.torch.nn.InstanceLoss"
+                        }
+                    }
+                }
+            ],
+            "weights": [1.0,1.0,0.01]
         }
     },
     "model": {
