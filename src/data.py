@@ -63,7 +63,7 @@ class DatasetQTDB(torch.utils.data.Dataset):
         if i == self.num_windows:
             raise StopIteration
         
-        return {"x": x.astype('float32'), "y": y.astype('float32')}
+        return {"x": x.astype(self.dtype), "y": y.astype(self.dtype)}
 
 
 class Dataset(torch.utils.data.Dataset):
@@ -89,7 +89,7 @@ class Dataset(torch.utils.data.Dataset):
                  QRS_ampl_low_thres = 0.5, QRS_ampl_high_thres = 1.25,
                  scaling_metric: Callable = sak.signal.amplitude,
                  labels_as_masks = True, return_beats: bool = False,
-                 relative_amplitude = True):
+                 relative_amplitude = True, seed = None, dtype = 'float32'):
         #### Segments ####
         # P wave
         self.P = P
@@ -124,6 +124,8 @@ class Dataset(torch.utils.data.Dataset):
         
         #### Generation hyperparams ####
         # Ints'n'stuff
+        self.rng = np.random.RandomState(seed)
+        self.dtype = dtype
         self.length = length
         self.N = N
         self.cycles = self.N//32 # Rule of thumb
@@ -218,8 +220,8 @@ class Dataset(torch.utils.data.Dataset):
 
         # 6. Return
         out_dict = {}
-        out_dict['x'] = signal[None,].astype('float32')
-        out_dict['y'] = masks.astype('float32')
+        out_dict['x'] = signal[None,].astype(self.dtype)
+        out_dict['y'] = masks.astype(self.dtype)
         if self.return_beats:
             out_dict['beats'] = beats
             out_dict['beat_types'] = beat_types
@@ -232,29 +234,29 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals = {}
 
         # Probabilities of waves
-        dict_globals['same_morph'] = np.random.rand() < self.proba_same_morph
-        dict_globals['has_flatline'] = np.random.rand() < self.proba_flatline
-        dict_globals['has_TV'] = np.random.rand() < self.proba_TV
-        dict_globals['has_AF'] = np.random.rand() < self.proba_AF
-        dict_globals['has_AV_block'] = np.random.rand() < self.proba_AV_block
-        dict_globals['has_tachy'] = np.random.rand() < self.proba_tachy
-        dict_globals['has_elevations'] = np.random.rand() < self.proba_elevation
-        dict_globals['has_sinus_arrest'] = np.random.rand() < self.proba_sinus_arrest
+        dict_globals['same_morph'] = self.rng.rand() < self.proba_same_morph
+        dict_globals['has_flatline'] = self.rng.rand() < self.proba_flatline
+        dict_globals['has_TV'] = self.rng.rand() < self.proba_TV
+        dict_globals['has_AF'] = self.rng.rand() < self.proba_AF
+        dict_globals['has_AV_block'] = self.rng.rand() < self.proba_AV_block
+        dict_globals['has_tachy'] = self.rng.rand() < self.proba_tachy
+        dict_globals['has_elevations'] = self.rng.rand() < self.proba_elevation
+        dict_globals['has_sinus_arrest'] = self.rng.rand() < self.proba_sinus_arrest
         if dict_globals['has_sinus_arrest']:
-            dict_globals['arrest_location'] = np.random.randint(2,6)
-            dict_globals['arrest_duration'] = np.random.randint(3)
+            dict_globals['arrest_location'] = self.rng.randint(2,6)
+            dict_globals['arrest_duration'] = self.rng.randint(3)
         
         # Logical if has TV
         if dict_globals['has_TV']: dict_globals['has_tachy'] = True
         if dict_globals['has_TV']: dict_globals['same_morph'] = True
        
         # Set hyperparameters
-        dict_globals['index_onset'] = np.random.randint(50)
-        dict_globals['begining_wave'] = np.random.randint(7)
-        dict_globals['global_amplitude'] = 1.+(np.random.randn()*self.amplitude_std)
-        dict_globals['interp_length'] = np.clip(1.+(np.random.randn()*self.interp_std),0.75,1.25)
-        if dict_globals['has_flatline']: dict_globals['flatline_length'] = np.random.randint(1,self.N//np.random.randint(2,5))
-        if dict_globals['has_flatline']: dict_globals['flatline_left'] = np.random.randint(dict_globals['flatline_length'])
+        dict_globals['index_onset'] = self.rng.randint(50)
+        dict_globals['begining_wave'] = self.rng.randint(7)
+        dict_globals['global_amplitude'] = 1.+(self.rng.randn()*self.amplitude_std)
+        dict_globals['interp_length'] = np.clip(1.+(self.rng.randn()*self.interp_std),0.75,1.25)
+        if dict_globals['has_flatline']: dict_globals['flatline_length'] = self.rng.randint(1,self.N//self.rng.randint(2,5))
+        if dict_globals['has_flatline']: dict_globals['flatline_left'] = self.rng.randint(dict_globals['flatline_length'])
         if dict_globals['has_flatline']: dict_globals['flatline_right'] = dict_globals['flatline_length']-dict_globals['flatline_left']
         dict_globals['N'] = math.ceil((self.N+dict_globals['index_onset']-dict_globals.get('flatline_length',0))/dict_globals['interp_length'])
 
@@ -267,39 +269,39 @@ class Dataset(torch.utils.data.Dataset):
         ##### Generate conditions #####
         # Generate ectopics
         if dict_globals['has_TV']: IDs['ectopics'] = np.ones((self.cycles,),dtype=bool)
-        else:                      IDs['ectopics'] = np.random.rand(self.cycles) < self.proba_ectopics
+        else:                      IDs['ectopics'] = self.rng.rand(self.cycles) < self.proba_ectopics
 
         # Merge T+P, P+QRS, QRS+T
-        IDs['merge_TP'] = np.random.rand(self.cycles) < self.proba_merge_TP*(1+dict_globals['has_tachy'])
-        IDs['merge_PQ'] = np.random.rand(self.cycles) < self.proba_merge_PQ*(1+dict_globals['has_tachy'])
-        IDs['merge_ST'] = np.random.rand(self.cycles) < self.proba_merge_ST*(1+dict_globals['has_tachy'])
+        IDs['merge_TP'] = self.rng.rand(self.cycles) < self.proba_merge_TP*(1+dict_globals['has_tachy'])
+        IDs['merge_PQ'] = self.rng.rand(self.cycles) < self.proba_merge_PQ*(1+dict_globals['has_tachy'])
+        IDs['merge_ST'] = self.rng.rand(self.cycles) < self.proba_merge_ST*(1+dict_globals['has_tachy'])
         
         ##### Generate identifiers #####
         if dict_globals['same_morph']:
-            IDs[  'P'] = np.array([np.random.randint(len(  self.P))]*self.cycles, dtype=int)
-            IDs[ 'PQ'] = np.array([np.random.randint(len( self.PQ))]*self.cycles, dtype=int)
-            IDs['QRS'] = np.array([np.random.randint(len(self.QRS))]*self.cycles, dtype=int)
-            IDs[ 'ST'] = np.array([np.random.randint(len( self.ST))]*self.cycles, dtype=int)
-            IDs[  'T'] = np.array([np.random.randint(len(  self.T))]*self.cycles, dtype=int)
-            IDs[ 'TP'] = np.array([np.random.randint(len( self.TP))]*self.cycles, dtype=int)
+            IDs[  'P'] = np.array([self.rng.randint(len(  self.P))]*self.cycles, dtype=int)
+            IDs[ 'PQ'] = np.array([self.rng.randint(len( self.PQ))]*self.cycles, dtype=int)
+            IDs['QRS'] = np.array([self.rng.randint(len(self.QRS))]*self.cycles, dtype=int)
+            IDs[ 'ST'] = np.array([self.rng.randint(len( self.ST))]*self.cycles, dtype=int)
+            IDs[  'T'] = np.array([self.rng.randint(len(  self.T))]*self.cycles, dtype=int)
+            IDs[ 'TP'] = np.array([self.rng.randint(len( self.TP))]*self.cycles, dtype=int)
 
             # If same morph, use different morphologies for the ectopic beats (for QRS and T waves)
-            IDs['QRS'][IDs['ectopics']] = np.array([np.random.randint(len(self.QRS))]*IDs['ectopics'].sum())
-            IDs[  'T'][IDs['ectopics']] = np.array([np.random.randint(len(  self.T))]*IDs['ectopics'].sum())
+            IDs['QRS'][IDs['ectopics']] = np.array([self.rng.randint(len(self.QRS))]*IDs['ectopics'].sum())
+            IDs[  'T'][IDs['ectopics']] = np.array([self.rng.randint(len(  self.T))]*IDs['ectopics'].sum())
         else:
-            IDs[  'P'] = np.random.randint(len(  self.P), size=self.cycles)
-            IDs[ 'PQ'] = np.random.randint(len( self.PQ), size=self.cycles)
-            IDs['QRS'] = np.random.randint(len(self.QRS), size=self.cycles)
-            IDs[ 'ST'] = np.random.randint(len( self.ST), size=self.cycles)
-            IDs[  'T'] = np.random.randint(len(  self.T), size=self.cycles)
-            IDs[ 'TP'] = np.random.randint(len( self.TP), size=self.cycles)
+            IDs[  'P'] = self.rng.randint(len(  self.P), size=self.cycles)
+            IDs[ 'PQ'] = self.rng.randint(len( self.PQ), size=self.cycles)
+            IDs['QRS'] = self.rng.randint(len(self.QRS), size=self.cycles)
+            IDs[ 'ST'] = self.rng.randint(len( self.ST), size=self.cycles)
+            IDs[  'T'] = self.rng.randint(len(  self.T), size=self.cycles)
+            IDs[ 'TP'] = self.rng.randint(len( self.TP), size=self.cycles)
 
         original_P = np.copy(IDs['P'])
 
         ##### Condition-specific modifiers #####
         # ~~~~~~~~~~~~~~~ ATRIAL FIBRILLATION ~~~~~~~~~~~~~~~~
         if dict_globals['has_AF'] and not dict_globals['same_morph']: 
-            IDs['P'] = np.repeat(np.random.randint(len(self.P)),self.cycles)
+            IDs['P'] = np.repeat(self.rng.randint(len(self.P)),self.cycles)
 
         # ~~~~~~~~~~~~~~~~~~~ SINUS ARREST ~~~~~~~~~~~~~~~~~~~
         filt_arrest = np.zeros((self.cycles,),dtype=bool)
@@ -308,18 +310,18 @@ class Dataset(torch.utils.data.Dataset):
 
         # ~~~~~~~~~~~~~ VENTRICULAR TACHYCARDIA ~~~~~~~~~~~~~~
         if dict_globals['has_tachy']:
-            base_len = np.random.randint(3,self.tachy_maxlen)
-            dict_globals['tachy_len'] = (np.random.randint(-3,3,size=self.cycles)+base_len).clip(min=0)
+            base_len = self.rng.randint(3,self.tachy_maxlen)
+            dict_globals['tachy_len'] = (self.rng.randint(-3,3,size=self.cycles)+base_len).clip(min=0)
 
-            filt_long_TP = np.random.rand(self.cycles) < IDs['ectopics']*0.90
+            filt_long_TP = self.rng.rand(self.cycles) < IDs['ectopics']*0.90
             if (not dict_globals['has_TV']):
-                dict_globals['tachy_len'][filt_long_TP] += np.random.randint(60,100,size=filt_long_TP.sum())
+                dict_globals['tachy_len'][filt_long_TP] += self.rng.randint(60,100,size=filt_long_TP.sum())
 
         # ~~~~~~~~~~~~~ ATRIOVENTRICULAR BLOCK  ~~~~~~~~~~~~~~
         if (dict_globals['has_AV_block'] and dict_globals['same_morph'] and not dict_globals['has_TV'] and not dict_globals['has_AF']):
-            num_skipped = np.random.randint(1,4)
-            num_normal = np.random.randint(2,6)
-            first = np.random.randint(0,4)
+            num_skipped = self.rng.randint(1,4)
+            num_normal = self.rng.randint(2,6)
+            first = self.rng.randint(0,4)
 
             # Define which cycles have AV block
             IDs['AV_block'] = np.array([False]*first + ([True]*num_skipped+[False]*num_normal)*math.ceil(self.cycles/(num_skipped+num_normal)))
@@ -327,7 +329,7 @@ class Dataset(torch.utils.data.Dataset):
 
             # Define AV block size
             sizes = sum([self.get_segment(type,IDs[type][0]).size for type in ['P','PQ','QRS','ST','T','TP']])
-            IDs['AV_sizes'] = (sizes*((1-0.05)+0.1*np.random.rand(self.cycles))).astype(int)
+            IDs['AV_sizes'] = (sizes*((1-0.05)+0.1*self.rng.rand(self.cycles))).astype(int)
 
             # Refine stuff
             IDs['merge_PQ'][IDs['AV_block']] = False
@@ -361,7 +363,7 @@ class Dataset(torch.utils.data.Dataset):
         IDs['merge_PQ'][  (IDs['P'] == -1) | (IDs['QRS'] == -1)] = False
         IDs['merge_ST'][(IDs['QRS'] == -1) |   (IDs['T'] == -1)] = False
         IDs['merge_TP'][  (IDs['P'] == -1) |   (IDs['T'] == -1)] = False
-        IDs['merge_ST'][np.random.rand(self.cycles) < IDs['ectopics']*0.25] = False
+        IDs['merge_ST'][self.rng.rand(self.cycles) < IDs['ectopics']*0.25] = False
 
         # Re-filter out some waves
         IDs['PQ'][IDs['merge_PQ']] = -1
@@ -373,19 +375,19 @@ class Dataset(torch.utils.data.Dataset):
         IDs['U'] = np.full((self.cycles,),-1,dtype=int)
 
         # Choose randomly U's morph
-        filt_U = np.random.rand(self.cycles) < self.proba_U_wave
+        filt_U = self.rng.rand(self.cycles) < self.proba_U_wave
         IDs['U'][filt_U] = IDs['T'][filt_U]
 
         # More probable U wave on ectopics
-        filt_ectopics = np.random.rand(self.cycles) <= IDs['ectopics']*0.5
+        filt_ectopics = self.rng.rand(self.cycles) <= IDs['ectopics']*0.5
         IDs['U'][filt_ectopics] = IDs['T'][filt_ectopics]
 
         # Deactivate on AV block
         IDs['U'][IDs['AV_block']] = -1
 
         # Generate U's sign
-        if dict_globals['same_morph']: IDs['U_sign'] = np.array([np.random.choice([-1,1])]*self.cycles, dtype=int)
-        else:                          IDs['U_sign'] = np.random.choice([-1,1], size=self.cycles)
+        if dict_globals['same_morph']: IDs['U_sign'] = np.array([self.rng.choice([-1,1])]*self.cycles, dtype=int)
+        else:                          IDs['U_sign'] = self.rng.choice([-1,1], size=self.cycles)
 
         # Regenerate P waves
         IDs['P'][IDs['AV_block']] = original_P[IDs['AV_block']]
@@ -399,33 +401,33 @@ class Dataset(torch.utils.data.Dataset):
 
         # Generate extensions
         extensions = {
-            'PQ': np.random.rand(self.cycles)*0.2+0.75,
-            'ST': np.random.rand(self.cycles)*0.2+0.75,
-            'TU': np.random.rand(self.cycles)*0.2+0.75,
-            'TP': np.random.rand(self.cycles)*0.3+0.5,
+            'PQ': self.rng.rand(self.cycles)*0.2+0.75,
+            'ST': self.rng.rand(self.cycles)*0.2+0.75,
+            'TU': self.rng.rand(self.cycles)*0.2+0.75,
+            'TP': self.rng.rand(self.cycles)*0.3+0.5,
         }
 
         # Disgregate by conditions:
-        extensions['ST'][IDs['ectopics']] = np.random.rand(IDs['ectopics'].sum())*0.3+0.5
+        extensions['ST'][IDs['ectopics']] = self.rng.rand(IDs['ectopics'].sum())*0.3+0.5
 
         return extensions
 
 
     def generate_amplitudes(self, dict_globals: dict):
         amplitudes = {
-            'P'   : self.Pdistribution.rvs(self.cycles),
-            'PQ'  : self.PQdistribution.rvs(self.cycles)/2,
-            'QRS' : self.QRSdistribution.rvs(self.cycles),
-            'ST'  : self.STdistribution.rvs(self.cycles)/2,
-            'T'   : self.Tdistribution.rvs(self.cycles),
-            'TP'  : self.TPdistribution.rvs(self.cycles)/2,
+            'P'   : self.Pdistribution.rvs(self.cycles,random_state=self.rng),
+            'PQ'  : self.PQdistribution.rvs(self.cycles,random_state=self.rng)/2,
+            'QRS' : self.QRSdistribution.rvs(self.cycles,random_state=self.rng),
+            'ST'  : self.STdistribution.rvs(self.cycles,random_state=self.rng)/2,
+            'T'   : self.Tdistribution.rvs(self.cycles,random_state=self.rng),
+            'TP'  : self.TPdistribution.rvs(self.cycles,random_state=self.rng)/2,
         }
 
         # P wave in case small amplitudes
         filter = (amplitudes['P'] < 0.03) | (amplitudes['P'] > 0.3)
         while np.any(filter):
             # Retrieve generous sample, faster than sampling twice
-            new_amplitudes = self.Pdistribution.rvs(self.cycles)
+            new_amplitudes = self.Pdistribution.rvs(self.cycles,random_state=self.rng)
             new_amplitudes = new_amplitudes[(new_amplitudes >= 0.03) & (new_amplitudes <= 0.3)]
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
@@ -439,7 +441,7 @@ class Dataset(torch.utils.data.Dataset):
         filter = (amplitudes['QRS'] < self.QRS_ampl_low_thres) | (amplitudes['QRS'] > self.QRS_ampl_high_thres)
         while np.any(filter):
             # Retrieve generous sample, faster than sampling twice
-            new_amplitudes = self.QRSdistribution.rvs(self.cycles)
+            new_amplitudes = self.QRSdistribution.rvs(self.cycles,random_state=self.rng)
             new_amplitudes = new_amplitudes[(new_amplitudes >= self.QRS_ampl_low_thres) | (new_amplitudes <= self.QRS_ampl_high_thres)]
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
@@ -454,7 +456,7 @@ class Dataset(torch.utils.data.Dataset):
         filter = (amplitudes['T'] < self.ectopic_amplitude_threshold) & dict_globals['IDs']['ectopics']
         while np.any(filter):
             # Retrieve generous sample, faster than sampling twice
-            new_amplitudes = self.Tdistribution.rvs(self.cycles)
+            new_amplitudes = self.Tdistribution.rvs(self.cycles,random_state=self.rng)
             new_amplitudes = new_amplitudes[new_amplitudes >= self.ectopic_amplitude_threshold]
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
@@ -468,7 +470,7 @@ class Dataset(torch.utils.data.Dataset):
         filter = (amplitudes['T'] < 0.075) | (amplitudes['T'] > 0.5)
         while np.any(filter):
             # Retrieve generous sample, faster than sampling twice
-            new_amplitudes = self.Tdistribution.rvs(self.cycles)
+            new_amplitudes = self.Tdistribution.rvs(self.cycles,random_state=self.rng)
             new_amplitudes = new_amplitudes[(new_amplitudes >= 0.075) & (new_amplitudes <= 0.5)]
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
@@ -483,9 +485,9 @@ class Dataset(torch.utils.data.Dataset):
 
         ###### CONDITION-SPECIFIC AMPLITUDES #####
         if dict_globals['same_morph']: 
-            amplitudes[  'P'] = amplitudes[  'P'][0]*(np.random.rand(self.cycles)*0.5+0.75) # Rule of thumb
-            amplitudes['QRS'] = amplitudes['QRS'][0]*(np.random.rand(self.cycles)*0.5+0.75) # Rule of thumb
-            amplitudes[  'T'] = amplitudes[  'T'][0]*(np.random.rand(self.cycles)*0.5+0.75) # Rule of thumb
+            amplitudes[  'P'] = amplitudes[  'P'][0]*(self.rng.rand(self.cycles)*0.5+0.75) # Rule of thumb
+            amplitudes['QRS'] = amplitudes['QRS'][0]*(self.rng.rand(self.cycles)*0.5+0.75) # Rule of thumb
+            amplitudes[  'T'] = amplitudes[  'T'][0]*(self.rng.rand(self.cycles)*0.5+0.75) # Rule of thumb
 
         # Apply correction factor depending on P, QRS and T widths
         amplitudes['P']   *= (1 + sigmoid( (dict_globals['IDs'][  'P_sizes'] -                    35)*0.25)) # Rule of thumb
@@ -501,7 +503,7 @@ class Dataset(torch.utils.data.Dataset):
         amplitudes['TP'] = amplitudes['TP'].clip(           max=0.025)
 
         # Generate U wave's amplitudes
-        amplitudes['U'] = amplitudes['T']*(np.random.rand(self.cycles)*0.1+0.05)
+        amplitudes['U'] = amplitudes['T']*(self.rng.rand(self.cycles)*0.1+0.05)
 
         return amplitudes
 
@@ -515,7 +517,7 @@ class Dataset(torch.utils.data.Dataset):
 
         if dict_globals['has_elevations']:
             # Generate elevation template
-            elevation_template = self.elevation_range*(2*np.random.rand(self.cycles,active.shape[1])-1)
+            elevation_template = self.elevation_range*(2*self.rng.rand(self.cycles,active.shape[1])-1)
 
             # Refine template's results - zero if the ID is zero
             active_rows = np.any(active,axis=-1)
@@ -653,7 +655,7 @@ class Dataset(torch.utils.data.Dataset):
         keys = self.get_keys(type)
         
         # Default id, in case not provided
-        if id is None: id = np.random.randint(len(keys))
+        if id is None: id = self.rng.randint(len(keys))
 
         # Retrieve segment for modulation
         segment = np.copy(waves[keys[id]])
@@ -663,7 +665,7 @@ class Dataset(torch.utils.data.Dataset):
 
     ################# SIGNAL-LEVEL FUNCTIONS #################
     def signal_baseline_wander(self, signal: np.ndarray):
-        scale = 0.5*np.abs(np.random.randn())*self.baseline_noise_scale
+        scale = 0.5*np.abs(self.rng.randn())*self.baseline_noise_scale
         baseline = self.random_walk(scale=scale, size=signal.size, smoothing_window=self.baseline_smoothing_window)
         signal = signal + baseline
         return signal
@@ -704,10 +706,10 @@ class Dataset(torch.utils.data.Dataset):
         N = signal.size
 
         # Interpolate to make wider
-        pAF = self.interpolate(pAF, np.random.randint(30,60))
+        pAF = self.interpolate(pAF, self.rng.randint(30,60))
 
         # Mirror on negative
-        sign = np.random.choice([-1,1])
+        sign = self.rng.choice([-1,1])
         template = [sign*pAF[:-1],-sign*pAF[:-1]]
 
         # Repeat to reach N samples
@@ -715,23 +717,23 @@ class Dataset(torch.utils.data.Dataset):
 
         # Crop to size N 
         if template.size != N:
-            onset = np.random.randint(template.size-N)
+            onset = self.rng.randint(template.size-N)
             template = template[onset:onset+N]
 
         # Interpolate on x axis to make less "stiff"
-        x = np.random.rand(N-1)*(np.random.randint(5,size=N-1)**np.random.randint(5,size=N-1))
+        x = self.rng.rand(N-1)*(self.rng.randint(5,size=N-1)**self.rng.randint(5,size=N-1))
         x = np.cumsum(self.smooth(np.hstack(([0.],x)),N//16))
         x = x/np.max(x)
         template = interp1d(np.linspace(0,1,N),template)(x)
 
         # Apply noise 
-        template = template*np.random.randn(template.size)
+        template = template*self.rng.randn(template.size)
         template = self.smooth(template,pAF.size//2)
 
         # Sample amplitude > 0.3 (to make any noticeable difference on the signal)
-        amplitude = self.Pdistribution.rvs(self.cycles)
+        amplitude = self.Pdistribution.rvs(self.cycles,random_state=self.rng)
         while not np.any((amplitude >= 0.35) & (amplitude <= 0.7)): 
-            amplitude = self.Pdistribution.rvs(self.cycles)
+            amplitude = self.Pdistribution.rvs(self.cycles,random_state=self.rng)
         amplitude = amplitude[(amplitude >= 0.35) & (amplitude <= 0.7)][0]
 
         # Apply AF on signal
@@ -743,7 +745,7 @@ class Dataset(torch.utils.data.Dataset):
     ################# SEGMENT-LEVEL FUNCTIONS #################
     def P_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         if segment.size < 20:
-            if np.random.rand() < 0.25:            segment = self.interpolate(segment, np.random.randint(15,40))
+            if self.rng.rand() < 0.25:            segment = self.interpolate(segment, self.rng.randint(15,40))
         return segment
 
 
@@ -757,7 +759,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def ST_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if dict_globals['has_TV']:                 segment = sak.signal.on_off_correction(self.random_walk(size=np.random.randint(2,32)))
+        if dict_globals['has_TV']:                 segment = sak.signal.on_off_correction(self.random_walk(size=self.rng.randint(2,32)))
         elif dict_globals['has_tachy']:            segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
         return segment
 
@@ -802,7 +804,7 @@ class Dataset(torch.utils.data.Dataset):
         if segment.size == 0: return
 
         # Apply mixup (if applicable)
-        if (np.random.rand() < self.proba_mixup) and (type in ['P','QRS','T']):
+        if (self.rng.rand() < self.proba_mixup) and (type in ['P','QRS','T']):
             segment2 = self.get_segment(type)
             segment2 = self.segment_post_operation(type, segment2, dict_globals, index)
             if sak.signal.signed_maxima(segment) != sak.signal.signed_maxima(segment2):
@@ -810,8 +812,8 @@ class Dataset(torch.utils.data.Dataset):
             segment = self.segment_mixup(segment, segment2)
 
         # Apply interpolation (if applicable, if segment is not empty)
-        if (np.random.rand() < self.proba_interpolation) and (segment.size > 1):
-            new_size = int(segment.size*(0.85+np.random.rand()*0.3))
+        if (self.rng.rand() < self.proba_interpolation) and (segment.size > 1):
+            new_size = int(segment.size*(0.85+self.rng.rand()*0.3))
             segment = self.interpolate(segment, new_size)
 
         return segment
@@ -839,7 +841,7 @@ class Dataset(torch.utils.data.Dataset):
         if segment1.size != segment2.size: segment2 = self.interpolate(segment2, segment1.size)
 
         # Generate a mixup segment
-        (mixup_segment,_) = sak.data.augmentation.mixup(segment1,segment2,self.mixup_alpha,self.mixup_beta)
+        (mixup_segment,_) = sak.data.augmentation.mixup(segment1,segment2,self.mixup_alpha,self.mixup_beta,rng=self.rng)
 
         # Scale to be in [-1,1] range
         mixup_segment = sak.data.ball_scaling(mixup_segment,metric=self.scaling_metric)
@@ -849,7 +851,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def segment_elevation(self, segment: np.ndarray, amplitude: float, randomize: bool = False):
         # Randomize amplitude
-        if randomize: amplitude = np.random.rand()*amplitude
+        if randomize: amplitude = self.rng.rand()*amplitude
 
         # Copy segment
         segment = np.copy(segment)
@@ -877,7 +879,7 @@ class Dataset(torch.utils.data.Dataset):
         dict_globals['sign_t'] = -np.sign(sak.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
 
         # Interpolate segment, widen it
-        segment = self.interpolate(segment,np.random.randint(30,70))
+        segment = self.interpolate(segment,self.rng.randint(30,70))
         return segment
 
 
@@ -965,14 +967,14 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def noise(self, length: int, amplitude: float, smooth: bool = True):
-        x = amplitude*(np.random.rand(length)*2-1)
+        x = amplitude*(self.rng.rand(length)*2-1)
         x = sak.signal.on_off_correction(x)
         if smooth: x = self.smooth(x,5)
         return x
 
 
     def random_walk(self, scale: float = 0.15, size: int = 2048, smoothing_window: int = None, conv_mode: str = 'same'):
-        noise = np.cumsum(norm.rvs(scale=scale,size=size))
+        noise = np.cumsum(norm.rvs(scale=scale,size=size,random_state=self.rng))
         if smoothing_window is not None:
             noise = self.smooth(noise, smoothing_window, conv_mode=conv_mode)
         return noise
@@ -983,10 +985,10 @@ class Dataset(torch.utils.data.Dataset):
         if type == 'QRS': 
             amplitude = np.inf
             while (amplitude < self.QRS_ampl_low_thres) or (amplitude > self.QRS_ampl_high_thres):
-                amplitude = distribution.rvs()
+                amplitude = distribution.rvs(random_state=self.rng)
             amplitude = amplitude.clip(max=1)
         else:
-            amplitude = distribution.rvs()
+            amplitude = distribution.rvs(random_state=self.rng)
         return amplitude
 
 
