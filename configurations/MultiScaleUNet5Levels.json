@@ -13,6 +13,7 @@
     "dataset": {
         "scaling_metric": "sak.signal.abs_max",
         "length": 65536,
+        "seed": 123456,
         "N": 2048
     },
     "loader": {
