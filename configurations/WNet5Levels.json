@@ -94,7 +94,10 @@
                     "arguments": {
                         "json": {
                             "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
-                            "class": "sak.torch.nn.BoundDiceLoss"
+                            "class": "sak.torch.nn.BoundDiceLoss",
+                            "arguments": {
+                                "channels": 3
+                            }
                         }
                     }
                 },
@@ -103,7 +106,10 @@
                     "arguments": {
                         "json": {
                             "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
-                            "class": "sak.torch.nn.InstanceLoss"
+                            "class": "sak.torch.nn.InstanceLoss",
+                            "arguments": {
+                                "channels": 3
+                            }
                         }
                     }
                 }
