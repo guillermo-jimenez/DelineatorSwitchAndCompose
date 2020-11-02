@@ -135,8 +135,11 @@ if __name__ == '__main__':
         
         # Retrieve fundamental
         if i >= len(wave_on[k1]): continue
-        fundamental = dataset[k1][wave_on[k1][i]-win_size:wave_off[k1][i]+win_size].values
-        fundamental = sak.signal.on_off_correction(fundamental)
+        # Onset and offset comparisons
+        fundamental_on  = dataset[k1][wave_on[k1][i]-win_size:wave_off[k1][i]].values
+        fundamental_on  = sak.signal.on_off_correction(fundamental_on)
+        fundamental_off = dataset[k1][wave_on[k1][i]:wave_off[k1][i]+win_size].values
+        fundamental_off = sak.signal.on_off_correction(fundamental_off)
 
         out_wave = {}
         
@@ -164,50 +167,69 @@ if __name__ == '__main__':
                 signal = np.copy(dataset[k2].values[valid_on:valid_off])
                     
                 # Obtain windowing
-                windowed_k2 = skimage.util.view_as_windows(signal,fundamental.size)
-                filt = np.zeros((windowed_k2.shape[0],),dtype=bool)
-                for on,off in zip(target_onset-(fundamental.size+1),target_offset+(fundamental.size-1)):
-                    filt[on:off] = True
+                windowed_k2_on  = skimage.util.view_as_windows(signal,fundamental_on.size)
+                windowed_k2_off = skimage.util.view_as_windows(signal,fundamental_off.size)
+                filt_on = np.zeros((windowed_k2_on.shape[0],),dtype=bool)
+                filt_off  = np.zeros((windowed_k2_off.shape[0],),dtype=bool)
+                for on,off in zip(target_onset-(fundamental_on.size+1),target_offset+(fundamental_on.size-1)):
+                    filt_on[on:off]  = True
+                for on,off in zip(target_onset-(fundamental_off.size+1),target_offset+(fundamental_off.size-1)):
+                    filt_off[on:off] = True
 
                 # Compute correlations
-                corrs = np.zeros((windowed_k2.shape[0],))
-                for j,w in enumerate(windowed_k2):
-                    if not filt[j]: continue
-                    # Correct deviations w.r.t zero
-                    w = sak.signal.on_off_correction(w)
-                    c,_ = sak.signal.xcorr(fundamental,w,maxlags=0)
-                    corrs[j] = c
+                corrs_on  = np.zeros((windowed_k2_on.shape[0],))
+                corrs_off = np.zeros((windowed_k2_off.shape[0],))
+                for j in range(len(windowed_k2_on)):
+                    if filt_on[j]:
+                        # Correct deviations w.r.t zero
+                        w = sak.signal.on_off_correction(windowed_k2_on[j])
+                        c,_ = sak.signal.xcorr(fundamental_on,w,maxlags=0)
+                        corrs_on[j] = c
+                    if filt_off[j]:
+                        # Correct deviations w.r.t zero
+                        w = sak.signal.on_off_correction(windowed_k2_off[j])
+                        c,_ = sak.signal.xcorr(fundamental_off,w,maxlags=0)
+                        corrs_off[j] = c
 
                 # Predict mask - threshold 95%
-                mask95 = np.array(corrs) > 0.95
-                mask95 = cv2.morphologyEx(mask95.astype(float), cv2.MORPH_CLOSE, np.ones((11,))).squeeze().astype(bool)
+                mask95_on  = np.array(corrs_on) > 0.95
+                mask95_off = np.array(corrs_off) > 0.95
+                mask95_on  = cv2.morphologyEx(mask95_on.astype(float), cv2.MORPH_CLOSE, np.ones((11,))).squeeze().astype(bool)
+                mask95_off = cv2.morphologyEx(mask95_off.astype(float), cv2.MORPH_CLOSE, np.ones((11,))).squeeze().astype(bool)
                 input_onset95 = []
                 input_offset95 = []
-                for on,off in zip(*sak.signal.get_mask_boundary(mask95)):
+                for on,off in zip(*sak.signal.get_mask_boundary(mask95_on)):
                     if on!=off:
-                        input_onset95.append(on+np.argmax(corrs[on:off])+win_size)
-                        input_offset95.append(input_onset95[-1]+(fundamental.size-win_size))
+                        input_onset95.append(on+np.argmax(corrs_on[on:off])+win_size)
+                for on,off in zip(*sak.signal.get_mask_boundary(mask95_off)):
+                    if on!=off:
+                        input_offset95.append(on+np.argmax(corrs_off[on:off])+(fundamental_off.size-win_size))
                 input_onset95 = np.array(input_onset95,dtype=int)
                 input_offset95 = np.array(input_offset95,dtype=int)
                 
                 # Predict mask - threshold 99%
-                mask99 = np.array(corrs) > 0.99
-                mask99 = cv2.morphologyEx(mask99.astype(float), cv2.MORPH_CLOSE, np.ones((11,))).squeeze().astype(bool)
+                mask99_on  = np.array(corrs_on) > 0.99
+                mask99_off = np.array(corrs_off) > 0.99
+                mask99_on  = cv2.morphologyEx(mask99_on.astype(float), cv2.MORPH_CLOSE, np.ones((11,))).squeeze().astype(bool)
+                mask99_off = cv2.morphologyEx(mask99_off.astype(float), cv2.MORPH_CLOSE, np.ones((11,))).squeeze().astype(bool)
                 input_onset99 = []
                 input_offset99 = []
-                for on,off in zip(*sak.signal.get_mask_boundary(mask99)):
+                for on,off in zip(*sak.signal.get_mask_boundary(mask99_on)):
                     if on!=off:
-                        input_onset99.append(on+np.argmax(corrs[on:off])+win_size)
-                        input_offset99.append(input_onset99[-1]+(fundamental.size-win_size))
+                        input_onset99.append(on+np.argmax(corrs_on[on:off])+win_size)
+                for on,off in zip(*sak.signal.get_mask_boundary(mask99_off)):
+                    if on!=off:
+                        input_offset99.append(on+np.argmax(corrs_off[on:off])+(fundamental_off.size-win_size))
                 input_onset99 = np.array(input_onset99,dtype=int)
                 input_offset99 = np.array(input_offset99,dtype=int)
                 
                 # Obtain the onsets and offses for the different correlations
-                _,_,_,_,on95,off95 = src.metrics.compute_metrics(input_onset95,input_offset95,target_onset,target_offset)
-                _,_,_,_,on99,off99 = src.metrics.compute_metrics(input_onset99,input_offset99,target_onset,target_offset)
+                _,_,_,_,on95,_  = src.metrics.compute_metrics(input_onset95,                                  input_onset95+(fundamental_on.size-win_size), target_onset,target_offset)
+                _,_,_,_,_,off95 = src.metrics.compute_metrics(input_offset95-(fundamental_off.size-win_size), input_offset95,                               target_onset,target_offset)
+                _,_,_,_,on99,_  = src.metrics.compute_metrics(input_onset99,                                  input_onset99+(fundamental_on.size-win_size), target_onset,target_offset)
+                _,_,_,_,_,off99 = src.metrics.compute_metrics(input_offset99-(fundamental_off.size-win_size), input_offset99,                               target_onset,target_offset)
 
                 # Add to current structures
-                correlations += corrs.tolist()
                 onsets95 += on95
                 offsets95 += off95
                 onsets99 += on99
