@@ -24,12 +24,14 @@ if __name__ == '__main__':
     parser.add_argument("--basedir", type=str, required=True, help="location of data files")
     parser.add_argument("--outdir", type=str, required=True, help="location of output files")
     parser.add_argument("--signal_id",  type=int, required=True, help="specific signal to process")
+    parser.add_argument("--win_size",  type=int, default=0, help="window before&after fundamental")
     args = parser.parse_args()
 
     # Store as simple variables
     basedir = os.path.expanduser(args.basedir) # '/media/guille/DADES/DADES/PhysioNet/QTDB/manual0/'
     outdir = os.path.expanduser(args.outdir) # '/media/guille/DADES/DADES/PhysioNet/QTDB/manual0/bias/'
     signal_id = args.signal_id # Variable, HPC array
+    win_size = args.win_size
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ LOAD DATASET ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     print("LOAD DATASET")
@@ -133,7 +135,7 @@ if __name__ == '__main__':
         
         # Retrieve fundamental
         if i >= len(wave_on[k1]): continue
-        fundamental = dataset[k1][wave_on[k1][i]:wave_off[k1][i]].values
+        fundamental = dataset[k1][wave_on[k1][i]-win_size:wave_off[k1][i]+win_size].values
         fundamental = sak.signal.on_off_correction(fundamental)
 
         out_wave = {}
@@ -183,8 +185,8 @@ if __name__ == '__main__':
                 input_offset95 = []
                 for on,off in zip(*sak.signal.get_mask_boundary(mask95)):
                     if on!=off:
-                        input_onset95.append(on+np.argmax(corrs[on:off]))
-                        input_offset95.append(on+np.argmax(corrs[on:off])+fundamental.size)
+                        input_onset95.append(on+np.argmax(corrs[on:off])+win_size)
+                        input_offset95.append(input_onset95[-1]+(fundamental.size-win_size))
                 input_onset95 = np.array(input_onset95,dtype=int)
                 input_offset95 = np.array(input_offset95,dtype=int)
                 
@@ -195,8 +197,8 @@ if __name__ == '__main__':
                 input_offset99 = []
                 for on,off in zip(*sak.signal.get_mask_boundary(mask99)):
                     if on!=off:
-                        input_onset99.append(on+np.argmax(corrs[on:off]))
-                        input_offset99.append(on+np.argmax(corrs[on:off])+fundamental.size)
+                        input_onset99.append(on+np.argmax(corrs[on:off])+win_size)
+                        input_offset99.append(input_onset99[-1]+(fundamental.size-win_size))
                 input_onset99 = np.array(input_onset99,dtype=int)
                 input_offset99 = np.array(input_offset99,dtype=int)
                 

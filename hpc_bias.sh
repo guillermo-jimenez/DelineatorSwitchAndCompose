@@ -8,7 +8,8 @@
 #SBATCH -o /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%A_%a.out
 #SBATCH -e /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS/LOGS/%A_%a.err
 
-ORIGINAL_SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID
+ORIGINAL_SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID;
+WINDOW_SIZE=0;
 
 module load Python/3.6.4-foss-2017a;
 module load libGLU/9.0.0-foss-2017a;
@@ -19,5 +20,5 @@ cd ~/GitHub/DelineatorSwitchAndCompose;
 for i in `seq 0 1000 10000`; 
 do 
     SLURM_ARRAY_TASK_ID=$(expr $ORIGINAL_SLURM_ARRAY_TASK_ID + $i);
-    python3 compute_bias.py --basedir /homedtic/gjimenez/DADES/DADES/PhysioNet/QTDB/manual0_bias --outdir /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS --signal_id ${SLURM_ARRAY_TASK_ID};
+    python3 compute_bias.py --basedir /homedtic/gjimenez/DADES/DADES/PhysioNet/QTDB/manual0_bias --outdir /homedtic/gjimenez/DADES/DADES/DelineationResults/BIAS --signal_id ${SLURM_ARRAY_TASK_ID} --win_size ${WINDOW_SIZE};
 done
