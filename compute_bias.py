@@ -199,11 +199,13 @@ if __name__ == '__main__':
                 input_onset95 = []
                 input_offset95 = []
                 for on,off in zip(*sak.signal.get_mask_boundary(mask95_on)):
-                    if on!=off:
-                        input_onset95.append(on+np.argmax(corrs_on[on:off])+win_size)
+                    if on != off: added_samples = np.argmax(corrs_on[on:off])
+                    else:         added_samples = 0
+                    input_onset95.append(on+added_samples+win_size)
                 for on,off in zip(*sak.signal.get_mask_boundary(mask95_off)):
-                    if on!=off:
-                        input_offset95.append(on+np.argmax(corrs_off[on:off])+(fundamental_off.size-win_size))
+                    if on != off: added_samples = np.argmax(corrs_off[on:off])
+                    else:         added_samples = 0
+                    input_offset95.append(on+added_samples+(fundamental_off.size-win_size))
                 input_onset95 = np.array(input_onset95,dtype=int)
                 input_offset95 = np.array(input_offset95,dtype=int)
                 
@@ -215,11 +217,13 @@ if __name__ == '__main__':
                 input_onset99 = []
                 input_offset99 = []
                 for on,off in zip(*sak.signal.get_mask_boundary(mask99_on)):
-                    if on!=off:
-                        input_onset99.append(on+np.argmax(corrs_on[on:off])+win_size)
+                    if on != off: added_samples = np.argmax(corrs_on[on:off])
+                    else:         added_samples = 0
+                    input_onset99.append(on+added_samples+win_size)
                 for on,off in zip(*sak.signal.get_mask_boundary(mask99_off)):
-                    if on!=off:
-                        input_offset99.append(on+np.argmax(corrs_off[on:off])+(fundamental_off.size-win_size))
+                    if on != off: added_samples = np.argmax(corrs_off[on:off])
+                    else:         added_samples = 0
+                    input_offset99.append(on+added_samples+(fundamental_off.size-win_size))
                 input_onset99 = np.array(input_onset99,dtype=int)
                 input_offset99 = np.array(input_offset99,dtype=int)
                 
