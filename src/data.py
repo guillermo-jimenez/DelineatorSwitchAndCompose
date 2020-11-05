@@ -124,7 +124,10 @@ class Dataset(torch.utils.data.Dataset):
         
         #### Generation hyperparams ####
         # Ints'n'stuff
-        self.rng = np.random.RandomState(seed)
+        if seed is None:
+            self.rng = np.random
+        else:
+            self.rng = np.random.RandomState(seed)
         self.dtype = dtype
         self.length = length
         self.N = N
