@@ -201,6 +201,7 @@ def main(config_file, model_name, input_files):
     shutil.copyfile("./train_multi.py",os.path.join(target_path,model_name,"train_multi.py"))
     shutil.copyfile("./src/data.py",os.path.join(target_path,model_name,"data.py"))
     shutil.copyfile("./src/metrics.py",os.path.join(target_path,model_name,"metrics.py"))
+    shutil.copyfile("./sak/torch/nn/modules/loss.py",os.path.join(target_path,model_name,"loss.py"))
     shutil.copyfile(config_file,os.path.join(target_path,model_name,os.path.split(config_file)[1]))
     
     # 5.3. Structure to save splitter
