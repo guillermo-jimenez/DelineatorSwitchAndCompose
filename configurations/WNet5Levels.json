@@ -85,9 +85,6 @@
                         "json": {
                             "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
                             "class": "sak.torch.nn.DiceLoss",
-                            "arguments": {
-                                "weights": [2.19871934, 2.04147921, 1.0]
-                            }
                         }
                     }
                 },
@@ -98,14 +95,26 @@
                             "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
                             "class": "sak.torch.nn.BoundDiceLoss",
                             "arguments": {
+                                "channels": 3
+                            }
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "json": {
+                            "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                            "class": "sak.torch.nn.F1InstanceLoss",
+                            "arguments": {
                                 "channels": 3,
-                                "weights": [2.19871934, 2.04147921, 1.0]
+                                "threshold": 10
                             }
                         }
                     }
                 }
             ],
-            "weights": [1.0,1.0]
+            "weights": [1.0,1.0,1.0]
         }
     },
     "model": {
