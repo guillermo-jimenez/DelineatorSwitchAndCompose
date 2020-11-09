@@ -84,7 +84,7 @@
                     "arguments": {
                         "json": {
                             "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
-                            "class": "sak.torch.nn.DiceLoss",
+                            "class": "sak.torch.nn.DiceLoss"
                         }
                     }
                 },
