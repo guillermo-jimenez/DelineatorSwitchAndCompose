@@ -1,0 +1,210 @@
+# WNet5BoundLoss_20201026000000
+
+--- SINGLE ---
+
+######### P wave #########
+
+Precision:    98.94%
+Recall:       97.02%
+F1 score:     97.97%
+
+Onset Error:  -4.44 ± 21.47 ms
+Offset Error: 1.48 ± 15.99 ms
+
+
+######### QRS wave #########
+
+Precision:    99.54%
+Recall:       99.97%
+F1 score:     99.75%
+
+Onset Error:  -1.46 ± 11.54 ms
+Offset Error: 5.77 ± 13.91 ms
+
+
+######### T wave #########
+
+Precision:    99.54%
+Recall:       99.66%
+F1 score:     99.6%
+
+Onset Error:  1.47 ± 41.39 ms
+Offset Error: 16.89 ± 55.18 ms
+
+
+---
+
+--- MULTI ---
+
+######### P wave #########
+
+Precision:    98.48%
+Recall:       98.24%
+F1 score:     98.36%
+
+Onset Error:  -3.34 ± 17.58 ms
+Offset Error: -0.28 ± 10.79 ms
+
+
+######### QRS wave #########
+
+Precision:    99.36%
+Recall:       100.0%
+F1 score:     99.68%
+
+Onset Error:  -0.8 ± 7.85 ms
+Offset Error: 2.59 ± 7.95 ms
+
+
+######### T wave #########
+
+Precision:    99.33%
+Recall:       99.84%
+F1 score:     99.59%
+
+Onset Error:  2.72 ± 34.8 ms
+Offset Error: 13.21 ± 46.47 ms
+
+
+
+-----------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------
+
+
+# WNet5TestNormalizedMSELoss_20201106
+
+--- SINGLE ---
+
+######### P wave #########
+
+Precision:    99.15%
+Recall:       94.69%
+F1 score:     96.87%
+
+Onset Error:  -7.02 ± 25.77 ms
+Offset Error: -1.22 ± 19.99 ms
+
+
+######### QRS wave #########
+
+Precision:    99.27%
+Recall:       99.97%
+F1 score:     99.62%
+
+Onset Error:  -1.44 ± 13.54 ms
+Offset Error: 5.28 ± 18.5 ms
+
+
+######### T wave #########
+
+Precision:    98.07%
+Recall:       99.22%
+F1 score:     98.64%
+
+Onset Error:  5.21 ± 51.42 ms
+Offset Error: 19.94 ± 59.96 ms
+
+
+---
+
+--- MULTI ---
+
+######### P wave #########
+
+Precision:    98.63%
+Recall:       96.65%
+F1 score:     97.63%
+
+Onset Error:  -6.33 ± 23.26 ms
+Offset Error: -2.19 ± 16.09 ms
+
+
+######### QRS wave #########
+
+Precision:    98.86%
+Recall:       100.0%
+F1 score:     99.43%
+
+Onset Error:  -0.97 ± 10.21 ms
+Offset Error: 2.78 ± 12.93 ms
+
+
+######### T wave #########
+
+Precision:    97.22%
+Recall:       99.65%
+F1 score:     98.42%
+
+Onset Error:  2.66 ± 43.68 ms
+Offset Error: 16.48 ± 51.17 ms
+
+# WNet5F1InstanceLossMinus1Weights_20201104
+
+--- SINGLE ---
+
+######### P wave #########
+
+Precision:    98.98%
+Recall:       95.57%
+F1 score:     97.24%
+
+Onset Error:  -6.57 ± 22.09 ms
+Offset Error: 2.36 ± 16.19 ms
+
+
+######### QRS wave #########
+
+Precision:    99.25%
+Recall:       99.97%
+F1 score:     99.61%
+
+Onset Error:  -1.91 ± 11.28 ms
+Offset Error: 5.0 ± 14.75 ms
+
+
+######### T wave #########
+
+Precision:    99.08%
+Recall:       99.63%
+F1 score:     99.35%
+
+Onset Error:  -6.09 ± 42.58 ms
+Offset Error: 18.58 ± 56.91 ms
+
+
+---
+
+--- MULTI ---
+
+######### P wave #########
+
+Precision:    98.39%
+Recall:       97.0%
+F1 score:     97.69%
+
+Onset Error:  -4.99 ± 19.02 ms
+Offset Error: 0.48 ± 11.54 ms
+
+
+######### QRS wave #########
+
+Precision:    98.83%
+Recall:       100.0%
+F1 score:     99.41%
+
+Onset Error:  -0.99 ± 7.96 ms
+Offset Error: 2.25 ± 8.82 ms
+
+
+######### T wave #########
+
+Precision:    98.86%
+Recall:       99.81%
+F1 score:     99.33%
+
+Onset Error:  -3.72 ± 36.24 ms
+Offset Error: 14.33 ± 47.54 ms
+
