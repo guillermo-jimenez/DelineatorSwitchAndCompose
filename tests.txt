@@ -208,3 +208,69 @@ F1 score:     99.33%
 Onset Error:  -3.72 ± 36.24 ms
 Offset Error: 14.33 ± 47.54 ms
 
+# NEWTESTF1LossNewGateFunction_20201109
+
+--- SINGLE ---
+
+######### P wave #########
+
+Precision:    98.34%
+Recall:       74.41%
+F1 score:     84.72%
+
+Onset Error:  -6.01 ± 20.89 ms
+Offset Error: 2.42 ± 15.66 ms
+
+
+######### QRS wave #########
+
+Precision:    99.52%
+Recall:       99.98%
+F1 score:     99.75%
+
+Onset Error:  -1.55 ± 11.94 ms
+Offset Error: 6.59 ± 14.17 ms
+
+
+######### T wave #########
+
+Precision:    99.24%
+Recall:       99.55%
+F1 score:     99.39%
+
+Onset Error:  -1.23 ± 38.98 ms
+Offset Error: 12.97 ± 51.68 ms
+
+
+---
+
+--- MULTI ---
+
+######### P wave #########
+
+Precision:    97.21%
+Recall:       75.85%
+F1 score:     85.21%
+
+Onset Error:  -4.12 ± 16.82 ms
+Offset Error: 0.76 ± 10.34 ms
+
+
+######### QRS wave #########
+
+Precision:    99.33%
+Recall:       100.0%
+F1 score:     99.66%
+
+Onset Error:  -0.91 ± 8.3 ms
+Offset Error: 3.17 ± 8.2 ms
+
+
+######### T wave #########
+
+Precision:    98.89%
+Recall:       99.78%
+F1 score:     99.33%
+
+Onset Error:  -0.01 ± 32.57 ms
+Offset Error: 10.43 ± 43.55 ms
