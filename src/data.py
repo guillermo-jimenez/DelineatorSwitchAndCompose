@@ -435,7 +435,7 @@ class Dataset(torch.utils.data.Dataset):
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
             if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
-            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
+            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len),mode='constant',constant_values=0)
             # Input into the amplitudes vector
             amplitudes['P'][filter] = new_amplitudes
             filter = (amplitudes['P'] < 0.03) | (amplitudes['P'] > 0.3)
@@ -449,7 +449,7 @@ class Dataset(torch.utils.data.Dataset):
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
             if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
-            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
+            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len),mode='constant',constant_values=0)
             # Input into the amplitudes vector
             amplitudes['QRS'][filter] = new_amplitudes
             filter = (amplitudes['QRS'] < self.QRS_ampl_low_thres) | (amplitudes['QRS'] > self.QRS_ampl_high_thres)
@@ -464,7 +464,7 @@ class Dataset(torch.utils.data.Dataset):
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
             if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
-            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
+            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len),mode='constant',constant_values=0)
             # Input into the amplitudes vector
             amplitudes['T'][filter] = new_amplitudes
             filter = (amplitudes['T'] < self.ectopic_amplitude_threshold) & dict_globals['IDs']['ectopics']
@@ -478,7 +478,7 @@ class Dataset(torch.utils.data.Dataset):
             # Pad/crop the new amplitudes
             pad_len = filter.sum()-new_amplitudes.size
             if   pad_len < 0: new_amplitudes = new_amplitudes[:filter.sum()]
-            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len))
+            elif pad_len > 0: new_amplitudes = np.pad(new_amplitudes,(0,pad_len),mode='constant',constant_values=0)
             # Input into the amplitudes vector
             amplitudes['T'][filter] = new_amplitudes
             filter = (amplitudes['T'] < 0.075) | (amplitudes['T'] > 0.5)
@@ -908,7 +908,7 @@ class Dataset(torch.utils.data.Dataset):
         # Create a composite shape
         if segment1.size+extension < segment2.size:
             extension = segment2.size-segment1.size
-        composite = np.pad(np.copy(segment1),(0,extension), 'edge')
+        composite = np.pad(np.copy(segment1),(0,extension), mode='edge')
 
         # Location of segment 1's max:
         loc_max1 = np.argmax(np.abs(composite))
@@ -962,7 +962,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def smooth(self, x: np.ndarray, window_size: int, conv_mode: str = 'same'):
-        x = np.pad(np.copy(x),(window_size,window_size),'edge')
+        x = np.pad(np.copy(x),(window_size,window_size),mode='edge')
         window = np.hamming(window_size)/(window_size//2)
         x = np.convolve(x, window, mode=conv_mode)
         x = x[window_size:-window_size]
