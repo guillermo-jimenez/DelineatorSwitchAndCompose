@@ -9,7 +9,6 @@
 #SBATCH --array=0-6
 #SBATCH -o /homedtic/gjimenez/DADES/DADES/Delineator/Logs/%A-%a.out
 #SBATCH -e /homedtic/gjimenez/DADES/DADES/Delineator/Logs/%A-%a.err
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK;
 
 module load Python/3.6.4-foss-2017a;
 source ~/VirtEnv/DeepLearning3/bin/activate;
