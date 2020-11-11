@@ -3,8 +3,8 @@
 #SBATCH -p high
 #SBATCH --exclude=node0[19-21,25]
 #SBATCH --gres=gpu:1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
+#SBATCH -N=1
+#SBATCH -n=8
 #SBATCH --mem=32G
 #SBATCH --array=0-6
 #SBATCH -o /homedtic/gjimenez/DADES/DADES/Delineator/Logs/%A-%a.out
