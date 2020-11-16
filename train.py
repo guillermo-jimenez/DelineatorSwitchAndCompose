@@ -128,13 +128,11 @@ def main(config_file, model_name, input_files):
     np.random.seed(execution["seed"])
     torch.random.manual_seed(execution["seed"])
     splitter = sklearn.model_selection.StratifiedKFold(5).split(filenames,database)
-    splitter, splitter_copy = itertools.tee(splitter)
+    splits = list(splitter)
+    indices_train = [s[0] for s in splits]
+    indices_valid = [s[1] for s in splits]
 
     ##### 2. Train folds #####
-    ### Loss
-    criterion = lambda X,y,y_pred: sak.torch.nn.DiceLoss()(y_pred, y)
-    metric    = lambda X,y,y_pred: sak.torch.nn.DiceLoss()(y_pred, y)
-
     # Save model-generating files
     target_path = execution["save_directory"] # Store original output path for future usage
     original_length = execution["dataset"]["length"]
@@ -143,14 +141,15 @@ def main(config_file, model_name, input_files):
     shutil.copyfile("./train.py",os.path.join(target_path,model_name,"train.py"))
     shutil.copyfile("./src/data.py",os.path.join(target_path,model_name,"data.py"))
     shutil.copyfile("./src/metrics.py",os.path.join(target_path,model_name,"metrics.py"))
+    shutil.copyfile("./sak/torch/nn/modules/loss.py",os.path.join(target_path,model_name,"loss.py"))
     shutil.copyfile(config_file,os.path.join(target_path,model_name,os.path.split(config_file)[1]))
     
     # Save folds of valid files
-    all_folds_test = {"fold_{}".format(i+1): np.array(filenames)[s[1]] for i,s in enumerate(list(splitter_copy))}
+    all_folds_test = {"fold_{}".format(i+1): np.array(filenames)[ix_valid] for i,ix_valid in enumerate(indices_valid)}
     sak.save_data(all_folds_test,os.path.join(target_path,model_name,"validation_files.csv"))
 
     # Iterate over folds
-    for i,(ix_train,ix_valid) in enumerate(splitter):
+    for i,(ix_train,ix_valid) in enumerate(zip(indices_train,indices_valid)):
         print("################# FOLD {} #################".format(i+1))
         train_keys, valid_keys = ([],[])
         for k in np.array(filenames)[ix_train]: train_keys += all_keys[k]
