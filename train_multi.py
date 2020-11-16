@@ -13,6 +13,7 @@ import shutil
 import uuid
 import random
 import platform
+import itertools
 import torch
 import torchvision
 import numpy as np
@@ -187,13 +188,9 @@ def main(config_file, model_name, input_files):
     np.random.seed(execution["seed"])
     torch.random.manual_seed(execution["seed"])
     splitter = sklearn.model_selection.StratifiedKFold(5).split(filenames,database)
+    splitter, splitter_copy = itertools.tee(splitter)
 
-    ##### 5. Train folds #####
-    # 5.1. Define loss
-    criterion = lambda X,y,y_pred,sample_weight: sak.torch.nn.DiceLoss()(y_pred, y, sample_weight=sample_weight)
-    metric    = lambda X,y,y_pred,sample_weight: sak.torch.nn.DiceLoss()(y_pred, y, sample_weight=sample_weight)
-
-    # 5.2. Save model-generating files
+    # 5.1. Save model-generating files
     target_path = execution["save_directory"] # Store original output path for future usage
     original_length = execution["dataset"]["length"]
     if not os.path.isdir(os.path.join(target_path,model_name)):
@@ -204,10 +201,11 @@ def main(config_file, model_name, input_files):
     shutil.copyfile("./sak/torch/nn/modules/loss.py",os.path.join(target_path,model_name,"loss.py"))
     shutil.copyfile(config_file,os.path.join(target_path,model_name,os.path.split(config_file)[1]))
     
-    # 5.3. Structure to save splitter
-    all_folds_test = {}
-    
-    # 5.4. Iterate over folds
+    # 5.2. Save folds of valid files
+    all_folds_test = {"fold_{}".format(i+1): np.array(filenames)[s[1]] for i,s in enumerate(list(splitter_copy))}
+    sak.save_data(all_folds_test,os.path.join(target_path,model_name,"validation_files.csv"))
+
+    # 5.3. Iterate over folds
     for i,(ix_train,ix_valid) in enumerate(splitter):
         print("################# FOLD {} #################".format(i+1))
         # Synthetic keys
@@ -230,9 +228,6 @@ def main(config_file, model_name, input_files):
         train_keys_real = list(set(train_keys_real))
         valid_keys_real = list(set(valid_keys_real))
 
-        # Save fold"s validation files for later usage
-        all_folds_test["fold_{}".format(i+1)] = np.array(filenames)[ix_valid]
-        
         # ~~~~~~~~~~~~~~~~~~~~ Refine synthetic set ~~~~~~~~~~~~~~~~~~~~
         # Divide train/valid segments
         Ptrain   = {k:   P[k] for k in   P if k in train_keys_synthetic}
@@ -301,8 +296,7 @@ def main(config_file, model_name, input_files):
         # Train model (auto-saves to same location as above)
         sak.torch.train.train_valid_model(model,state,execution,loader_train,loader_valid)
 
-    sak.save_data(all_folds_test,os.path.join(target_path,model_name,"validation_files.csv"))
-        
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()

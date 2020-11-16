@@ -13,6 +13,7 @@ import shutil
 import uuid
 import random
 import platform
+import itertools
 import torch
 import torchvision
 import numpy as np
@@ -127,6 +128,7 @@ def main(config_file, model_name, input_files):
     np.random.seed(execution["seed"])
     torch.random.manual_seed(execution["seed"])
     splitter = sklearn.model_selection.StratifiedKFold(5).split(filenames,database)
+    splitter, splitter_copy = itertools.tee(splitter)
 
     ##### 2. Train folds #####
     ### Loss
@@ -143,9 +145,10 @@ def main(config_file, model_name, input_files):
     shutil.copyfile("./src/metrics.py",os.path.join(target_path,model_name,"metrics.py"))
     shutil.copyfile(config_file,os.path.join(target_path,model_name,os.path.split(config_file)[1]))
     
-    # Structure to save splitter
-    all_folds_test = {}
-    
+    # Save folds of valid files
+    all_folds_test = {"fold_{}".format(i+1): np.array(filenames)[s[1]] for i,s in enumerate(list(splitter_copy))}
+    sak.save_data(all_folds_test,os.path.join(target_path,model_name,"validation_files.csv"))
+
     # Iterate over folds
     for i,(ix_train,ix_valid) in enumerate(splitter):
         print("################# FOLD {} #################".format(i+1))
@@ -153,9 +156,6 @@ def main(config_file, model_name, input_files):
         for k in np.array(filenames)[ix_train]: train_keys += all_keys[k]
         for k in np.array(filenames)[ix_valid]: valid_keys += all_keys[k]
 
-        # Save fold"s validation files for later usage
-        all_folds_test["fold_{}".format(i+1)] = np.array(filenames)[ix_valid]
-        
         # Divide train/valid segments
         Ptrain   = {k:   P[k] for k in   P if k in train_keys}
         PQtrain  = {k:  PQ[k] for k in  PQ if k in train_keys}
@@ -206,8 +206,8 @@ def main(config_file, model_name, input_files):
         # Train model (auto-saves to same location as above)
         sak.torch.train.train_valid_model(model,state,execution,loader_train,loader_valid)
 
-    sak.save_data(all_folds_test,os.path.join(target_path,model_name,"validation_files.csv"))
-        
+
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
