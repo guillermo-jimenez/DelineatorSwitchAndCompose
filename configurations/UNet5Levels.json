@@ -16,9 +16,10 @@
         "N": 2048
     },
     "loader": {
-        "batch_size": 256,
+        "batch_size": 128,
         "num_workers": 4,
-        "pin_memory": true
+        "pin_memory": true,
+        "shuffle": true
     },
     "optimizer": {
         "class": "torch.optim.Adam",
@@ -94,15 +95,46 @@
         }
     },
     "loss": {
-        "class": "sak.torch.Mapper",
+        "class": "sak.torch.nn.CompoundLoss",
         "arguments": {
-            "json": {
-                "input_mappings": [
-                    ["outputs","sigmoid"],
-                    ["inputs","y"]
-                ],
-                "class": "sak.torch.nn.DiceLoss"
-            }
+            "operations": [
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "json": {
+                            "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                            "class": "sak.torch.nn.DiceLoss"
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "json": {
+                            "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                            "class": "sak.torch.nn.BoundDiceLoss1d",
+                            "arguments": {
+                                "channels": 3,
+                                "kernel_size": 11
+                            }
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "json": {
+                            "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                            "class": "sak.torch.nn.F1InstanceLoss1d",
+                            "arguments": {
+                                "channels": 3,
+                                "threshold": 0.5
+                            }
+                        }
+                    }
+                }
+            ],
+            "weights": [0.0,0.0,1000.0]
         }
     },
     "model": {
