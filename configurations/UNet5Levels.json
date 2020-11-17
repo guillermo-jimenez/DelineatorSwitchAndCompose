@@ -128,7 +128,7 @@
                             "class": "sak.torch.nn.F1InstanceLoss1d",
                             "arguments": {
                                 "channels": 3,
-                                "threshold": 10
+                                "threshold": 2.5
                             }
                         }
                     }
