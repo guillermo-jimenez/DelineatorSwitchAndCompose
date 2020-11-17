@@ -6,7 +6,7 @@
     "resume": false,
     "input_shape": 1024,
     "iterator": "tqdm.tqdm",
-    "epochs": 100,
+    "epochs": 150,
     "sampler": {
         "shuffle": true
     },
@@ -128,13 +128,44 @@
                             "class": "sak.torch.nn.F1InstanceLoss1d",
                             "arguments": {
                                 "channels": 3,
-                                "threshold": 7.5
+                                "threshold": 10
+                            }
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                        "operation": {
+                            "class": "sak.torch.nn.ConstantLoss",
+                            "arguments": {
+                                "value": 1
                             }
                         }
                     }
                 }
             ],
-            "weight": [0.0,0.0,1.0]
+            "weight": [
+                1.0,
+                0.0,
+                {
+                    "class": "numpy.linspace",
+                    "arguments": [
+                        0,
+                        0.5,
+                        51
+                    ]
+                },
+                {
+                    "class": "numpy.linspace",
+                    "arguments": [
+                        0.5,
+                        0,
+                        51
+                    ]
+                }
+            ]
         }
     },
     "model": {
