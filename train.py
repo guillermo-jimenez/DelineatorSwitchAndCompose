@@ -190,7 +190,7 @@ def main(config_file, model_name, input_files):
         loader_valid = torch.utils.data.DataLoader(dataset_valid, **execution["loader"])
 
         # Define model
-        model = nn.ModelGraph(execution["model"]).float().cuda()
+        model = sak.from_dict(execution["model"]).float().cuda()
         
         # Train model
         state = {

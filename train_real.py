@@ -200,7 +200,7 @@ def main(config_file, model_name, input_files):
         loader_valid = torch.utils.data.DataLoader(dataset_valid_real, **execution["loader"])
 
         # Define model
-        model = nn.ModelGraph(execution["model"]).float().cuda()
+        model = sak.from_dict(execution["model"]).float().cuda()
         
         # Train model
         state = {
@@ -214,6 +214,8 @@ def main(config_file, model_name, input_files):
 
         # Train model (auto-saves to same location as above)
         sak.torch.train.train_valid_model(model,state,execution,loader_train,loader_valid)
+
+        adgjladgjs
 
 
 if __name__ == "__main__":
