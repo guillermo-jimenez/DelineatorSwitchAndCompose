@@ -55,14 +55,14 @@
                             ]
                         },
                         {
-                            "class": "sak.torch.data.augmentation.AdditiveWhiteGaussianNoise",
+                            "class": "sak.torch.signal.data.augmentation.AdditiveWhiteGaussianNoise",
                             "arguments": [
                                 20,
                                 0.01
                             ]
                         },
                         {
-                            "class": "sak.torch.data.augmentation.PowerlineNoise",
+                            "class": "sak.torch.signal.data.augmentation.PowerlineNoise",
                             "arguments": [
                                 20,
                                 500,
@@ -70,7 +70,7 @@
                             ]
                         },
                         {
-                            "class": "sak.torch.data.augmentation.BaselineNoise",
+                            "class": "sak.torch.signal.data.augmentation.BaselineNoise",
                             "arguments": [
                                 -5,
                                 500,
@@ -78,13 +78,13 @@
                             ]
                         },
                         {
-                            "class": "sak.torch.data.augmentation.ChangeAmplitude",
+                            "class": "sak.torch.signal.data.augmentation.ChangeAmplitude",
                             "arguments": [
                                 0.01
                             ]
                         },
                         {
-                            "class": "sak.torch.data.augmentation.SegmentationErrors",
+                            "class": "sak.torch.signal.data.augmentation.SegmentationErrors",
                             "arguments": [
                                 10
                             ]
