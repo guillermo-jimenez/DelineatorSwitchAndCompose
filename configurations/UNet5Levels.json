@@ -128,7 +128,7 @@
                             "class": "sak.torch.nn.F1InstanceLoss1d",
                             "arguments": {
                                 "channels": 3,
-                                "threshold": 6
+                                "threshold": 4
                             }
                         }
                     }
@@ -160,7 +160,7 @@
                 {
                     "class": "numpy.linspace",
                     "arguments": [
-                        0.5,
+                        1,
                         0,
                         51
                     ]
