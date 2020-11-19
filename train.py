@@ -33,7 +33,7 @@ import scipy.stats
 
 import src.data
 import sak
-import sak.wavelet
+import sak.signal.wavelet
 import sak.data
 import sak.data.augmentation
 import sak.data.preprocessing
