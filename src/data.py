@@ -85,7 +85,7 @@ class Dataset(torch.utils.data.Dataset):
                  baseline_noise_scale = 0.025, baseline_smoothing_window = 51, 
                  joint_smoothing_window = 5, convolution_ptg = 0.25,
                  amplitude_std = 0.25, interp_std = 0.15, 
-                 ectopic_QRS_size = 40,
+                 ectopic_QRS_size = 40, proba_no_U_wave_TV = 0.85,
                  QRS_ampl_low_thres = 0.5, QRS_ampl_high_thres = 1.25,
                  scaling_metric: Callable = sak.signal.amplitude,
                  labels_as_masks = True, return_beats: bool = False,
@@ -162,6 +162,7 @@ class Dataset(torch.utils.data.Dataset):
         self.proba_merge_ST = proba_merge_ST
         self.proba_same_morph = proba_same_morph
         self.proba_U_wave = proba_U_wave
+        self.proba_no_U_wave_TV = proba_no_U_wave_TV
         self.proba_elevation = proba_elevation
         self.proba_flatline = proba_flatline
         self.proba_sinus_arrest = proba_sinus_arrest
@@ -387,6 +388,11 @@ class Dataset(torch.utils.data.Dataset):
 
         # Deactivate on AV block
         IDs['U'][IDs['AV_block']] = -1
+
+        # Filter out most U waves on TV (leave some for good measure)
+        if dict_globals['has_TV']:
+            filt_U_TV = self.rng.rand(self.cycles) <= self.proba_no_U_wave_TV
+            IDs['U'][filt_U_TV] = -1
 
         # Generate U's sign
         if dict_globals['same_morph']: IDs['U_sign'] = np.array([self.rng.choice([-1,1])]*self.cycles, dtype=int)
@@ -762,13 +768,14 @@ class Dataset(torch.utils.data.Dataset):
 
 
     def ST_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
-        if dict_globals['has_TV']:                 segment = sak.signal.on_off_correction(self.random_walk(size=self.rng.randint(2,32)))
+        if dict_globals['has_TV']:                 segment = sak.signal.on_off_correction(self.random_walk(size=self.rng.randint(2,16)))
         elif dict_globals['has_tachy']:            segment = self.segment_tachy(segment, dict_globals['tachy_len'][index])
         return segment
 
 
     def T_post_operation(self, segment: np.ndarray, dict_globals: dict, index: int):
         if dict_globals['IDs']['ectopics'][index]: segment = self.T_ectopic(segment, dict_globals, index)
+        if dict_globals['has_TV']:                 segment = self.interpolate(segment,round(segment.size*(np.clip(np.random.normal()*0.05+0.6,0.5,1))))
         return segment
 
 
