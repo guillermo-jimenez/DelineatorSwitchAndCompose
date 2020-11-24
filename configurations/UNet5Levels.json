@@ -143,7 +143,7 @@
                         "operation": {
                             "class": "sak.torch.nn.ConstantLoss",
                             "arguments": {
-                                "value": 1.5
+                                "value": 2.5
                             }
                         }
                     }
@@ -151,7 +151,14 @@
             ],
             "weights": [
                 1.0,
-                1.0,
+                {
+                    "class": "numpy.linspace",
+                    "arguments": [
+                        0,
+                        1,
+                        26
+                    ]
+                },
                 {
                     "class": "numpy.linspace",
                     "arguments": [

@@ -89,15 +89,87 @@
         }
     },
     "loss": {
-        "class": "sak.torch.Mapper",
+        "class": "sak.torch.nn.CompoundLoss",
         "arguments": {
-            "input_mappings": [
-                ["outputs","sigmoid"],
-                ["inputs","y"]
+            "operations": [
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                        "operation": {
+                            "class": "sak.torch.nn.DiceLoss",
+                            "arguments": {
+                                "weight": [1.5,1.0,1.0]
+                            }
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                        "operation": {
+                            "class": "sak.torch.nn.BoundDiceLoss",
+                            "arguments": {
+                                "channels": 3,
+                                "weight": [1.5,1.0,1.0]
+                            }
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                        "operation": {
+                            "class": "sak.torch.nn.F1InstanceLoss",
+                            "arguments": {
+                                "channels": 3,
+                                "weight": [1.25,1.0,1.0]
+                            }
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                        "operation": {
+                            "class": "sak.torch.nn.ConstantLoss",
+                            "arguments": {
+                                "value": 2.5
+                            }
+                        }
+                    }
+                }
             ],
-            "operation": {
-                "class": "sak.torch.nn.DiceLoss"
-            }
+            "weights": [
+                1.0,
+                {
+                    "class": "numpy.linspace",
+                    "arguments": [
+                        0,
+                        1,
+                        26
+                    ]
+                },
+                {
+                    "class": "numpy.linspace",
+                    "arguments": [
+                        0,
+                        0.5,
+                        26
+                    ]
+                },
+                {
+                    "class": "numpy.linspace",
+                    "arguments": [
+                        1,
+                        0,
+                        26
+                    ]
+                }
+            ]
         }
     },
     "model": {
