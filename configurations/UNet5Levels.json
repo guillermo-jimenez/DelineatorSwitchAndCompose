@@ -103,19 +103,9 @@
                     "arguments": {
                         "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
                         "operation": {
-                            "class": "sak.torch.nn.DiceLoss"
-                        }
-                    }
-                },
-                {
-                    "class": "sak.torch.Mapper",
-                    "arguments": {
-                        "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
-                        "operation": {
-                            "class": "sak.torch.nn.BoundDiceLoss1d",
+                            "class": "sak.torch.nn.DiceLoss",
                             "arguments": {
-                                "channels": 3,
-                                "kernel_size": 11
+                                "weight": [1.5,1.0,1.0]
                             }
                         }
                     }
@@ -125,10 +115,23 @@
                     "arguments": {
                         "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
                         "operation": {
-                            "class": "sak.torch.nn.F1InstanceLoss1d",
+                            "class": "sak.torch.nn.BoundDiceLoss",
                             "arguments": {
                                 "channels": 3,
-                                "threshold": 4
+                                "weight": [1.5,1.0,1.0]
+                            }
+                        }
+                    }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                        "operation": {
+                            "class": "sak.torch.nn.F1InstanceLoss",
+                            "arguments": {
+                                "channels": 3,
+                                "weight": [1.25,1.0,1.0]
                             }
                         }
                     }
@@ -140,15 +143,15 @@
                         "operation": {
                             "class": "sak.torch.nn.ConstantLoss",
                             "arguments": {
-                                "value": 1
+                                "value": 1.5
                             }
                         }
                     }
                 }
             ],
-            "weight": [
+            "weights": [
                 1.0,
-                0.0,
+                1.0,
                 {
                     "class": "numpy.linspace",
                     "arguments": [

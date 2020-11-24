@@ -134,9 +134,40 @@
                             }
                         }
                     }
+                },
+                {
+                    "class": "sak.torch.Mapper",
+                    "arguments": {
+                        "input_mappings": [["outputs", "sigmoid"],["inputs", "y"]],
+                        "operation": {
+                            "class": "sak.torch.nn.ConstantLoss",
+                            "arguments": {
+                                "value": 1.5
+                            }
+                        }
+                    }
                 }
             ],
-            "weights": [1.0,1.0,5.0]
+            "weights": [
+                1.0,
+                1.0,
+                {
+                    "class": "numpy.linspace",
+                    "arguments": [
+                        0,
+                        0.5,
+                        26
+                    ]
+                },
+                {
+                    "class": "numpy.linspace",
+                    "arguments": [
+                        1,
+                        0,
+                        26
+                    ]
+                }
+            ]
         }
     },
     "model": {
