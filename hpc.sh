@@ -34,5 +34,5 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK;
 source ~/VirtEnv/DeepLearning3/bin/activate;
 cd ~/GitHub/DelineatorSwitchAndCompose;
 
-python3 train_multi.py --config_file ./configurations/${model}.json --input_files ./pickle/ --model_name ${model}_$(date '+%Y%m%d%H%M%S');
+python3 train_multi.py --config_file ./configurations/${model}.json --input_files ./pickle/ --model_name ${model}_$(date '+%Y%m%d%H%M%S') --hpc 1;
 

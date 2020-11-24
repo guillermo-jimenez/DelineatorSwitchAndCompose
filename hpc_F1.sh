@@ -19,5 +19,5 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK;
 
 source ~/VirtEnv/DeepLearning3/bin/activate;
 cd ~/GitHub/DelineatorSwitchAndCompose;
-python3 train_multi.py --config_file ./configurations/HPC/${SLURM_ARRAY_TASK_ID}.json --input_files ./pickle/ --model_name TESTF1Loss_${SLURM_ARRAY_TASK_ID};
+python3 train_multi.py --config_file ./configurations/HPC/${SLURM_ARRAY_TASK_ID}.json --input_files ./pickle/ --model_name TESTF1Loss_${SLURM_ARRAY_TASK_ID} --hpc 1;
 
