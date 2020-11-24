@@ -141,7 +141,7 @@ F1 score:     98.42%
 Onset Error:  2.66 ± 43.68 ms
 Offset Error: 16.48 ± 51.17 ms
 
-# WNet5F1InstanceLossMinus1Weights_20201104
+# WNet5F1InstanceLoss1dMinus1Weights_20201104
 
 --- SINGLE ---
 

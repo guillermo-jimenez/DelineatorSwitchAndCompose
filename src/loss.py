@@ -14,7 +14,7 @@ from torch.nn import BCELoss
 from sak.__ops import required
 from sak.__ops import check_required
 
-class F1InstanceLossNoGateNoSoft(torch.nn.Module):
+class F1InstanceLoss1dNoGateNoSoft(torch.nn.Module):
     def __init__(self, channels: int = 1, reduction: str = 'mean', weight: Iterable = None, threshold: float = 10, kernel_size: int = 3):
         super().__init__()
         self.channels = channels
@@ -80,7 +80,7 @@ class F1InstanceLossNoGateNoSoft(torch.nn.Module):
         # Obtain loss
         return self.reduction(loss)
 
-class F1InstanceLossNewGateNoSoft(torch.nn.Module):
+class F1InstanceLoss1dNewGateNoSoft(torch.nn.Module):
     def __init__(self, channels: int = 1, reduction: str = 'mean', weight: Iterable = None, threshold: float = 10, kernel_size: int = 3):
         super().__init__()
         self.channels = channels
@@ -154,7 +154,7 @@ class F1InstanceLossNewGateNoSoft(torch.nn.Module):
         # Obtain loss
         return self.reduction(loss)
 
-class F1InstanceLossNoGateSoft(torch.nn.Module):
+class F1InstanceLoss1dNoGateSoft(torch.nn.Module):
     def __init__(self, channels: int = 1, reduction: str = 'mean', weight: Iterable = None, threshold: float = 10, kernel_size: int = 3):
         super().__init__()
         self.channels = channels
@@ -228,7 +228,7 @@ class F1InstanceLossNoGateSoft(torch.nn.Module):
         # Obtain loss
         return self.reduction(loss)
 
-class F1InstanceLossNewGateSoft(torch.nn.Module):
+class F1InstanceLoss1dNewGateSoft(torch.nn.Module):
     def __init__(self, channels: int = 1, reduction: str = 'mean', weight: Iterable = None, threshold: float = 10, kernel_size: int = 3):
         super().__init__()
         self.channels = channels
@@ -310,7 +310,7 @@ class F1InstanceLossNewGateSoft(torch.nn.Module):
         # Obtain loss
         return self.reduction(loss)
 
-class F1InstanceLossOldGateNoSoft(torch.nn.Module):
+class F1InstanceLoss1dOldGateNoSoft(torch.nn.Module):
     def __init__(self, channels: int = 1, reduction: str = 'mean', weight: Iterable = None, threshold: float = 10, kernel_size: int = 3):
         super().__init__()
         self.channels = channels
@@ -385,7 +385,7 @@ class F1InstanceLossOldGateNoSoft(torch.nn.Module):
         return self.reduction(loss)
 
 
-class F1InstanceLossOldGateSoft(torch.nn.Module):
+class F1InstanceLoss1dOldGateSoft(torch.nn.Module):
     def __init__(self, channels: int = 1, reduction: str = 'mean', weight: Iterable = None, threshold: float = 10, kernel_size: int = 3):
         super().__init__()
         self.channels = channels
