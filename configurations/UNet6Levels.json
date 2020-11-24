@@ -148,7 +148,7 @@
                     }
                 }
             ],
-            "weights": [
+            "weight": [
                 1.0,
                 {
                     "class": "numpy.linspace",
