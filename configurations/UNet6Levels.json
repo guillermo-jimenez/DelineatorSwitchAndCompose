@@ -453,6 +453,17 @@
                     }
                 },
                 {
+                    "id": "decoder_upsample6",
+                    "class": "torch.nn.Upsample",
+                    "arguments": {
+                        "scale_factor": 2
+                    }
+                },
+                {
+                    "id": "decoder_concat5",
+                    "class": "sak.torch.nn.Concatenate"
+                },
+                {
                     "id": "decoder_lvl5",
                     "class": "sak.torch.nn.CNN",
                     "arguments": {
@@ -482,17 +493,6 @@
                             }
                         ]
                     }
-                },
-                {
-                    "id": "decoder_upsample6",
-                    "class": "torch.nn.Upsample",
-                    "arguments": {
-                        "scale_factor": 2
-                    }
-                },
-                {
-                    "id": "decoder_concat5",
-                    "class": "sak.torch.nn.Concatenate"
                 },
                 {
                     "id": "decoder_upsample5",
