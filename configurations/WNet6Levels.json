@@ -547,6 +547,13 @@
                     }
                 },
                 {
+                    "id": "decoder_1_upsample5",
+                    "class": "torch.nn.Upsample",
+                    "arguments": {
+                        "scale_factor": 2
+                    }
+                },
+                {
                     "id": "decoder_1_concat4",
                     "class": "sak.torch.nn.Concatenate"
                 },
