@@ -59,13 +59,17 @@ def smooth(x: np.ndarray, window_size: int, conv_mode: str = "same"):
     return x
 
 
-def main(config_file, model_name, input_files):
+def main(config_file, model_name, input_files, bool_hpc):
     ##### 1. Load configuration file #####
     with open(config_file, "r") as f:
         execution = json.load(f)
 
     execution["root_directory"] = os.path.expanduser(execution["root_directory"])
     execution["save_directory"] = os.path.expanduser(execution["save_directory"])
+
+    # NO ITERATOR FOR HPC, WASTE OF MEMORY
+    if bool_hpc:
+        execution["iterator"] = "none"
 
     ##### 2. Load QTDB #####
     dataset             = pd.read_csv(os.path.join(input_files,'QTDB','Dataset.csv'), index_col=0)
@@ -223,8 +227,9 @@ if __name__ == "__main__":
     parser.add_argument("--config_file", type=str, required=True, help="location of config file (.json)")
     parser.add_argument("--input_files", type=str, required=True, help="location of (pickled) input data")
     parser.add_argument("--model_name",  type=str, required=True, help="model name")
+    parser.add_argument("--hpc",         type=bool, default=False, help="mark if executed in HPC")
     args = parser.parse_args()
 
-    main(args.config_file, args.model_name, args.input_files)
+    main(args.config_file, args.model_name, args.input_files, args.hpc)
 
 
