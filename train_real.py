@@ -196,8 +196,8 @@ def main(config_file, model_name, input_files, bool_hpc):
             pathlib.Path(execution["save_directory"]).mkdir(parents=True, exist_ok=True)
         
         # Define real datasets
-        dataset_train_real = src.data.OversampledDatasetQTDB(signal_QTDB_train,segmentation_QTDB_train,execution["dataset"]["N"],128,72138)
-        dataset_valid_real = src.data.OversampledDatasetQTDB(signal_QTDB_valid,segmentation_QTDB_valid,execution["dataset"]["N"],128,72138)
+        dataset_train_real = src.data.OversampledDatasetQTDB(signal_QTDB_train,segmentation_QTDB_train,execution["dataset"]["N"],128,72622)
+        dataset_valid_real = src.data.OversampledDatasetQTDB(signal_QTDB_valid,segmentation_QTDB_valid,execution["dataset"]["N"],128,72622)
 
         # Create dataloaders
         execution["loader"]["shuffle"] = True
