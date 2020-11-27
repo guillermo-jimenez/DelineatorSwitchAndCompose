@@ -196,10 +196,11 @@ def main(config_file, model_name, input_files, bool_hpc):
             pathlib.Path(execution["save_directory"]).mkdir(parents=True, exist_ok=True)
         
         # Define real datasets
-        dataset_train_real = src.data.DatasetQTDB(signal_QTDB_train,segmentation_QTDB_train,execution["dataset"]["N"],128)
-        dataset_valid_real = src.data.DatasetQTDB(signal_QTDB_valid,segmentation_QTDB_valid,execution["dataset"]["N"],128)
+        dataset_train_real = src.data.OversampledDatasetQTDB(signal_QTDB_train,segmentation_QTDB_train,execution["dataset"]["N"],128,72138)
+        dataset_valid_real = src.data.OversampledDatasetQTDB(signal_QTDB_valid,segmentation_QTDB_valid,execution["dataset"]["N"],128,72138)
 
         # Create dataloaders
+        execution["loader"]["shuffle"] = True
         loader_train = torch.utils.data.DataLoader(dataset_train_real, **execution["loader"])
         loader_valid = torch.utils.data.DataLoader(dataset_valid_real, **execution["loader"])
 
@@ -218,8 +219,6 @@ def main(config_file, model_name, input_files, bool_hpc):
 
         # Train model (auto-saves to same location as above)
         sak.torch.train.train_valid_model(model,state,execution,loader_train,loader_valid)
-
-        adgjladgjs
 
 
 if __name__ == "__main__":
