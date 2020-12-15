@@ -46,6 +46,6 @@ cd ~/GitHub/DelineatorSwitchAndCompose;
 
 for i in {1..108}
 do
-  model=${list_all_models[$SLURM_ARRAY_TASK_ID]}
+  model=${list_all_models[$i]}
   python3 test.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0;
 done
