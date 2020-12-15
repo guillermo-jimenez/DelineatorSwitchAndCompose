@@ -40,7 +40,8 @@ done < "$input"
 # python3 test.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 1;
 
 
-source ~/VirtEnv/DeepLearning3/bin/activate;
+source ~/anaconda3/bin/activate;
+conda activate HPC;
 cd ~/GitHub/DelineatorSwitchAndCompose;
 
 for i in {1..108}
