@@ -15,7 +15,7 @@ def filter_valid(onset: np.ndarray, offset: np.ndarray, validity_on: int = 0, va
 
     mask_on    = (onset  >= validity_on) & (onset  <= validity_off)
     mask_off   = (offset >= validity_on) & (offset <= validity_off)
-    mask_total = np.any(mask_on & mask_off, axis=0) # beat has to be found in every one
+    mask_total = np.any(mask_on | mask_off, axis=0) # beat has to be found in every one
 
     onset = onset[mask_total]
     offset = offset[mask_total]
