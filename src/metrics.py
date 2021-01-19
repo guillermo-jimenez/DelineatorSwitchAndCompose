@@ -9,13 +9,18 @@ def dice_score(input: np.ndarray, target: np.ndarray) -> float:
     return 2.*intersection/(union + np.finfo('double').eps)
 
 
-def filter_valid(onset: np.ndarray, offset: np.ndarray, validity_on: int = 0, validity_off: int = np.inf):
+def filter_valid(onset: np.ndarray, offset: np.ndarray, validity_on: int = 0, validity_off: int = np.inf, type: str = 'and'):
     validity_on  = np.array( validity_on)[np.newaxis,np.newaxis]
     validity_off = np.array(validity_off)[np.newaxis,np.newaxis]
 
     mask_on    = (onset  >= validity_on) & (onset  <= validity_off)
     mask_off   = (offset >= validity_on) & (offset <= validity_off)
-    mask_total = np.any(mask_on | mask_off, axis=0) # beat has to be found in every one
+    if type == 'and':
+        mask_total = np.any(mask_on & mask_off, axis=0) # beat has to be found in every one
+    elif type == 'or':
+        mask_total = np.any(mask_on | mask_off, axis=0) # beat has to be found in every one
+    else:
+        raise ValueError("Type not understood")
 
     onset = onset[mask_total]
     offset = offset[mask_total]
