@@ -329,64 +329,6 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size, database
         
     metrics_string += "\n---"
         
-    if database.lower() == 'ludb':
-        #########################################################################
-        # Produce per-fold metrics, single lead
-        metrics_fold_1 = {wave: {m : {} for m in metrics[wave]} for wave in ['p','qrs','t']}
-        metrics_fold_2 = {wave: {m : {} for m in metrics[wave]} for wave in ['p','qrs','t']}
-        metrics_fold_3 = {wave: {m : {} for m in metrics[wave]} for wave in ['p','qrs','t']}
-        metrics_fold_4 = {wave: {m : {} for m in metrics[wave]} for wave in ['p','qrs','t']}
-        metrics_fold_5 = {wave: {m : {} for m in metrics[wave]} for wave in ['p','qrs','t']}
-        metrics_fold_string = ""
-
-        for wave in ['p','qrs','t']:
-            for m in metrics[wave]:
-                for k in metrics[wave][m]:
-                    u_id = k.split('_')[0]
-                    m_fold = eval("metrics_{}".format(fold_of_file[u_id]))
-                    m_fold[wave][m][k] = metrics[wave][m][k]
-
-        metrics_fold_string += "\n# {}".format(model_name)
-
-        for wave in ['p','qrs','t']:
-            print_header    = "                        "
-            print_precision = "Precision:              "#{}%\t{}%\t{}%\t{}%\t{}%"
-            print_recall    = "Recall:                 "#{}%\t{}%\t{}%\t{}%\t{}%"
-            print_f1_score  = "F1 score:               "#{}%\t{}%\t{}%\t{}%\t{}%"
-            print_on_error  = "Onset error:  "#{:>3.2f} ± {:>3.2f} ms   {:>3.2f} ± {:>3.2f} ms   {:>3.2f} ± {:>3.2f} ms   {:>3.2f} ± {:>3.2f} ms   {:>3.2f} ± {:>3.2f} ms"
-            print_off_error = "Offset error: "#{:>3.2f} ± {:>3.2f} ms   {:>3.2f} ± {:>3.2f} ms   {:>3.2f} ± {:>3.2f} ms   {:>3.2f} ± {:>3.2f} ms   {:>3.2f} ± {:>3.2f} ms"
-            for fold in ['fold_1','fold_2','fold_3','fold_4','fold_5']:
-                m = eval("metrics_{}".format(fold))
-                print_header += fold + "             "
-                try:
-                    print_precision += "{:3.4}%             ".format(np.round(src.metrics.precision(sum(m[wave]['truepositives'].values()),sum(m[wave]['falsepositives'].values()),sum(m[wave]['falsenegatives'].values()))*100,decimals=2))
-                except:
-                    print_precision += "{:3.4}%             ".format(0.0)
-                try:
-                    print_recall += "{:3.4}%             ".format(np.round(src.metrics.recall(sum(m[wave]['truepositives'].values()),sum(m[wave]['falsepositives'].values()),sum(m[wave]['falsenegatives'].values()))*100,decimals=2))
-                except:
-                    print_recall += "{:3.4}%             ".format(0.0)
-                try:
-                    print_f1_score += "{:3.4}%             ".format(np.round(src.metrics.f1_score(sum(m[wave]['truepositives'].values()),sum(m[wave]['falsepositives'].values()),sum(m[wave]['falsenegatives'].values()))*100,decimals=2))
-                except:
-                    print_f1_score += "{:3.4}%             ".format(0.0)
-                
-                print_on_error +=  "{: 3.3} ± {: 3.3} ms   ".format(np.round(np.mean([v for l in m[wave]['onerrors'].values() for v in l])/250*1000,decimals=2),np.round(np.std([v for l in m[wave]['onerrors'].values() for v in l])/250*1000,decimals=2))
-                print_off_error += "{: 3.3} ± {: 3.3} ms   ".format(np.round(np.mean([v for l in m[wave]['offerrors'].values() for v in l])/250*1000,decimals=2),np.round(np.std([v for l in m[wave]['offerrors'].values() for v in l])/250*1000,decimals=2))
-            
-            metrics_fold_string += "\n######### {} wave #########".format(wave.upper())
-            metrics_fold_string += "\n"
-            metrics_fold_string += "\n" + print_header
-            metrics_fold_string += "\n"
-            metrics_fold_string += "\n" + print_precision
-            metrics_fold_string += "\n" + print_recall
-            metrics_fold_string += "\n" + print_f1_score
-            metrics_fold_string += "\n" + print_on_error
-            metrics_fold_string += "\n" + print_off_error
-            metrics_fold_string += "\n"
-            metrics_fold_string += "\n"
-        metrics_fold_string += "\n---"
-
     #########################################################################
     # Save predictions
     sak.save_data(pon,    os.path.join(basedir,'TrainedModels',model_name,f'{database}_predicted_pon.csv'))
@@ -402,10 +344,6 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size, database
         sys.stdout = f # Change the standard output to the file we created.
         print(metrics_string)
 
-    if database.lower() == 'ludb':
-        with open(os.path.join(basedir,'TrainedModels',model_name,f'{database}_metrics_fold_string.txt'), 'w') as f:
-            sys.stdout = f # Change the standard output to the file we created.
-            print(metrics_fold_string)
     sys.stdout = original_stdout # Reset the standard output to its original value
 
 
