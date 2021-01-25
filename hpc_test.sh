@@ -47,7 +47,7 @@ cd ~/GitHub/DelineatorSwitchAndCompose;
 for i in {1..108}
 do
   model=${list_all_models[$i]}
-  python3 test_holter.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0;
   python3 test_holter.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0 --database ludb;
   python3 test_holter.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0 --database zhejiang;
+  python3 test_holter.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0;
 done
