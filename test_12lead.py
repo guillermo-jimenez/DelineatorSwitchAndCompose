@@ -56,38 +56,36 @@ import sak.torch.models.classification
 
 from sak.signal import StandardHeader
 
-def predict_mask(signal, N, stride, model, thr_dice, ptg_voting = 0.25):
-    total_samples = np.zeros((1,),dtype='int64')
-    
+def predict_mask(signal, N, stride, model, thr_dice, ptg_voting = 0.25, batch_size = 16):
     # Data structure for computing the segmentation
-    windowed_signal = np.array([(skimage.util.view_as_windows((signal)[:,lead],N,stride)) for lead in range(signal.shape[1])])[:,:,None,:]
-    windowed_sample = np.array((skimage.util.view_as_windows(np.arange(signal.shape[0]),N,stride)))
+    windowed_signal = skimage.util.view_as_windows(signal,(N,1),(stride,1))
 
-    segmentation = np.zeros((3,signal.shape[0]),dtype=int)
-    samples_voting = np.zeros((signal.shape[0],),dtype=int)
+    # Flat batch shape
+    new_shape = (windowed_signal.shape[0]*windowed_signal.shape[1],*windowed_signal.shape[2:])
+    windowed_signal = np.reshape(windowed_signal,new_shape)
+
+    # Exchange channel position
+    windowed_signal = np.swapaxes(windowed_signal,1,2)
+
+    # Output structures
+    windowed_mask = np.zeros((windowed_signal.shape[0],3,windowed_signal.shape[-1]),dtype=float)
 
     # Compute segmentation for all leads independently
-    for lead in range(windowed_signal.shape[0]):
-        for i in range(0,windowed_signal.shape[1]):
-            with torch.no_grad():
-                prediction = predict_segment(model,windowed_signal[lead,i,None,...]) > thr_dice
+    with torch.no_grad():
+        for i in range(0,windowed_signal.shape[0],batch_size):
+            inputs = {"x": torch.tensor(windowed_signal[i:i+batch_size]).cuda().float()}
+            windowed_mask[i:i+batch_size] = model.cuda()(inputs)["sigmoid"].cpu().detach().numpy() > thr_dice
 
-            # Fused segmentation
-            segmentation[:,windowed_sample[i]] += prediction
-            samples_voting[windowed_sample[i]] += 1
+    # Retrieve mask as 1D
+    counter = np.zeros((signal.shape[0]), dtype=int)
+    segmentation = np.zeros((3,signal.shape[0]))
 
-    # Keep track of number of samples predicted
-    total_samples += samples_voting.sum()
+    for i in range(0,windowed_mask.shape[0],12):
+        counter[(i//12)*stride:(i//12)*stride+N] += 1
+        segmentation[:,(i//12)*stride:(i//12)*stride+N] += windowed_mask[i:i+12].sum(0)
+    segmentation = ((segmentation/counter) >= (signal.shape[-1]*ptg_voting))
 
-    # Majority voting according to number of times windowed and computed
-    segmentation = (segmentation > (samples_voting*ptg_voting).astype(int))
-    
     return segmentation
-
-def predict_segment(model, input):
-    input = {"x": torch.tensor(input).cuda().float()}
-    output = model(input)["sigmoid"][0].cpu().detach().numpy().squeeze()
-    return output
 
 def smooth(x: np.ndarray, window_size: int, conv_mode: str = 'same'):
     x = np.pad(np.copy(x),(window_size,window_size),'edge')
@@ -213,9 +211,9 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size, database
         for j,fold in enumerate(models):
             m = models[fold]
             if j == 0:
-                segmentation = predict_mask(signal, window_size, stride, m, thr_dice, ptg_voting).astype(int)
+                segmentation = predict_mask(signal, window_size, stride, m, thr_dice, ptg_voting, batch_size).astype(int)
             else:
-                segmentation += predict_mask(signal, window_size, stride, m, thr_dice, ptg_voting)
+                segmentation += predict_mask(signal, window_size, stride, m, thr_dice, ptg_voting, batch_size)
                 
         segmentation = segmentation >= 3
         
