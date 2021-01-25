@@ -250,6 +250,8 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size, database
     pon, poff, qrson, qrsoff, ton, toff = {},{},{},{},{},{}
 
     for k in tqdm.tqdm(predictions):
+        if f"{k}###I" not in validity:
+            continue
         pon[k],poff[k]     = sak.signal.get_mask_boundary(predictions[k][0,],aslist=False)
         qrson[k],qrsoff[k] = sak.signal.get_mask_boundary(predictions[k][1,],aslist=False)
         ton[k],toff[k]     = sak.signal.get_mask_boundary(predictions[k][2,],aslist=False)
