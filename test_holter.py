@@ -41,7 +41,7 @@ import sak.data
 import sak.data.augmentation
 import sak.data.preprocessing
 import sak.visualization
-import sak.visualization.plot
+import sak.visualization.signal
 import sak.torch
 import sak.torch.nn
 import sak.torch.nn as nn
