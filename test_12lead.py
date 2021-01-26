@@ -270,7 +270,7 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size, database
             joint_on = []
             joint_off = []
             for v_on,v_off in zip(val_on,val_off):
-                tmp_on, tmp_off = src.metrics.filter_valid(input_on[k],input_off[k],v_on,v_off)
+                tmp_on, tmp_off = src.metrics.filter_valid(input_on[k],input_off[k],v_on,v_off,operation="or")
                 joint_on.append(tmp_on)
                 joint_off.append(tmp_off)
             input_on[k],input_off[k] = np.concatenate(joint_on),np.concatenate(joint_off)
@@ -297,8 +297,8 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size, database
             k_target = f"{k_input}###I"
             try:
                 # Refine input and output's regions w/ validity vectors
-                (input_on[k_input],input_off[k_input]) = src.metrics.filter_valid(input_on[k_input],input_off[k_input], validity[k_target][0], validity[k_target][1])
-                (target_on[k_target],target_off[k_target]) = src.metrics.filter_valid(target_on[k_target],target_off[k_target], validity[k_target][0], validity[k_target][1])
+                (input_on[k_input],input_off[k_input]) = src.metrics.filter_valid(input_on[k_input],input_off[k_input], validity[k_target][0], validity[k_target][1],operation="or")
+                (target_on[k_target],target_off[k_target]) = src.metrics.filter_valid(target_on[k_target],target_off[k_target], validity[k_target][0], validity[k_target][1],operation="or")
                 tp,fp,fn,dice,onerror,offerror = src.metrics.compute_metrics(input_on[k_input],input_off[k_input],target_on[k_target],target_off[k_target])
             except:
                 continue
