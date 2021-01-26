@@ -247,7 +247,7 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size, database
     # Retrieve onsets and offsets
     pon, poff, qrson, qrsoff, ton, toff = {},{},{},{},{},{}
 
-    for k in tqdm.tqdm(predictions):
+    for k in predictions:
         if f"{k}###I" not in validity:
             continue
         pon[k],poff[k]     = sak.signal.get_mask_boundary(predictions[k][0,],aslist=False)
