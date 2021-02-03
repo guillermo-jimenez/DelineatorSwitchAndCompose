@@ -162,7 +162,7 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size):
         joint_on = []
         joint_off = []
         for v_on,v_off in zip(val_on,val_off):
-            tmp_on, tmp_off = src.metrics.filter_valid(pon[k],poff[k],v_on,v_off)
+            tmp_on, tmp_off = src.metrics.filter_valid(pon[k],poff[k],v_on,v_off,operation='or')
             joint_on.append(tmp_on)
             joint_off.append(tmp_off)
         pon[k],poff[k] = np.concatenate(joint_on),np.concatenate(joint_off)
@@ -171,7 +171,7 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size):
         joint_on = []
         joint_off = []
         for v_on,v_off in zip(val_on,val_off):
-            tmp_on, tmp_off = src.metrics.filter_valid(qrson[k],qrsoff[k],v_on,v_off)
+            tmp_on, tmp_off = src.metrics.filter_valid(qrson[k],qrsoff[k],v_on,v_off,operation='or')
             joint_on.append(tmp_on)
             joint_off.append(tmp_off)
         qrson[k],qrsoff[k] = np.concatenate(joint_on),np.concatenate(joint_off)
@@ -180,7 +180,7 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size):
         joint_on = []
         joint_off = []
         for v_on,v_off in zip(val_on,val_off):
-            tmp_on, tmp_off = src.metrics.filter_valid(ton[k],toff[k],v_on,v_off)
+            tmp_on, tmp_off = src.metrics.filter_valid(ton[k],toff[k],v_on,v_off,operation='or')
             joint_on.append(tmp_on)
             joint_off.append(tmp_off)
         ton[k],toff[k] = np.concatenate(joint_on),np.concatenate(joint_off)
@@ -208,8 +208,8 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size):
             if fname in ['sel35','sel36','sel103','sel232','sel310']: continue
             try:
                 # Refine input and output's regions w/ validity vectors
-                (input_on[k],input_off[k]) = src.metrics.filter_valid(input_on[k],input_off[k], validity[k][0], validity[k][1])
-                (target_on[k],target_off[k]) = src.metrics.filter_valid(target_on[k],target_off[k], validity[k][0], validity[k][1])
+                (input_on[k],input_off[k]) = src.metrics.filter_valid(input_on[k],input_off[k], validity[k][0], validity[k][1],operation='or')
+                (target_on[k],target_off[k]) = src.metrics.filter_valid(target_on[k],target_off[k], validity[k][0], validity[k][1],operation='or')
                 tp,fp,fn,dice,onerror,offerror = src.metrics.compute_metrics(input_on[k],input_off[k],target_on[k],target_off[k])
             except:
                 continue
@@ -239,10 +239,10 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size):
             if k in ['sel35','sel36','sel103','sel232','sel310']: continue
             try:
                 # Refine input and output's regions w/ validity vectors
-                (input_on[k+'_0'],input_off[k+'_0']) = src.metrics.filter_valid(input_on[k+'_0'],input_off[k+'_0'], validity[k+'_0'][0], validity[k+'_0'][1])
-                (target_on[k+'_0'],target_off[k+'_0']) = src.metrics.filter_valid(target_on[k+'_0'],target_off[k+'_0'], validity[k+'_0'][0], validity[k+'_0'][1])
-                (input_on[k+'_1'],input_off[k+'_1']) = src.metrics.filter_valid(input_on[k+'_1'],input_off[k+'_1'], validity[k+'_1'][0], validity[k+'_1'][1])
-                (target_on[k+'_1'],target_off[k+'_1']) = src.metrics.filter_valid(target_on[k+'_1'],target_off[k+'_1'], validity[k+'_1'][0], validity[k+'_1'][1])
+                (input_on[k+'_0'],input_off[k+'_0']) = src.metrics.filter_valid(input_on[k+'_0'],input_off[k+'_0'], validity[k+'_0'][0], validity[k+'_0'][1],operation='or')
+                (target_on[k+'_0'],target_off[k+'_0']) = src.metrics.filter_valid(target_on[k+'_0'],target_off[k+'_0'], validity[k+'_0'][0], validity[k+'_0'][1],operation='or')
+                (input_on[k+'_1'],input_off[k+'_1']) = src.metrics.filter_valid(input_on[k+'_1'],input_off[k+'_1'], validity[k+'_1'][0], validity[k+'_1'][1],operation='or')
+                (target_on[k+'_1'],target_off[k+'_1']) = src.metrics.filter_valid(target_on[k+'_1'],target_off[k+'_1'], validity[k+'_1'][0], validity[k+'_1'][1],operation='or')
                 tp,fp,fn,dice,on,off = src.metrics.compute_QTDB_metrics(input_on[k+'_0'],input_off[k+'_0'],
                                                                         input_on[k+'_1'],input_off[k+'_1'],
                                                                         target_on[k+'_0'],target_off[k+'_0'])
@@ -402,20 +402,20 @@ def main(basedir, model_name, hpc, model_type, batch_size, window_size):
 
     #########################################################################
     # Save predictions
-    sak.save_data(pon,    os.path.join(basedir,'TrainedModels',model_name,'predicted_pon.csv'))
-    sak.save_data(poff,   os.path.join(basedir,'TrainedModels',model_name,'predicted_poff.csv'))
-    sak.save_data(qrson,  os.path.join(basedir,'TrainedModels',model_name,'predicted_qrson.csv'))
-    sak.save_data(qrsoff, os.path.join(basedir,'TrainedModels',model_name,'predicted_qrsoff.csv'))
-    sak.save_data(ton,    os.path.join(basedir,'TrainedModels',model_name,'predicted_ton.csv'))
-    sak.save_data(toff,   os.path.join(basedir,'TrainedModels',model_name,'predicted_toff.csv'))
+    sak.save_data(pon,    os.path.join(basedir,'TrainedModels',model_name,'predicted_pon_inclusive.csv'))
+    sak.save_data(poff,   os.path.join(basedir,'TrainedModels',model_name,'predicted_poff_inclusive.csv'))
+    sak.save_data(qrson,  os.path.join(basedir,'TrainedModels',model_name,'predicted_qrson_inclusive.csv'))
+    sak.save_data(qrsoff, os.path.join(basedir,'TrainedModels',model_name,'predicted_qrsoff_inclusive.csv'))
+    sak.save_data(ton,    os.path.join(basedir,'TrainedModels',model_name,'predicted_ton_inclusive.csv'))
+    sak.save_data(toff,   os.path.join(basedir,'TrainedModels',model_name,'predicted_toff_inclusive.csv'))
 
     # Save produced metrics
     original_stdout = sys.stdout # Save a reference to the original standard output
-    with open(os.path.join(basedir,'TrainedModels',model_name,'metrics_string.txt'), 'w') as f:
+    with open(os.path.join(basedir,'TrainedModels',model_name,'metrics_string_inclusive.txt'), 'w') as f:
         sys.stdout = f # Change the standard output to the file we created.
         print(metrics_string)
 
-    with open(os.path.join(basedir,'TrainedModels',model_name,'metrics_fold_string.txt'), 'w') as f:
+    with open(os.path.join(basedir,'TrainedModels',model_name,'metrics_fold_string_inclusive.txt'), 'w') as f:
         sys.stdout = f # Change the standard output to the file we created.
         print(metrics_fold_string)
     sys.stdout = original_stdout # Reset the standard output to its original value
