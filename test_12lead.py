@@ -136,7 +136,7 @@ def get_sample(file: str, database: str) -> Tuple[float, np.ndarray]:
         fs = header['fs']
     elif database == 'zhejiang':
         signal = pd.read_csv(file).values
-        fs = 1000.
+        fs = 2000.
     return signal, fs
 
 # database = 'zhejiang'
