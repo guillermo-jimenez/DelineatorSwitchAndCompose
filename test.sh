@@ -10,12 +10,14 @@ do
   list_all_models+=("$line")
 done < "$input"
 
-for i in {1..109}
+for i in {0..108}
 do
     model=${list_all_models[$i]};
-    echo $i/109 $model;
+    echo $((i+1))/109 $model;
     echo "";  
     python3 test_12lead.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0 --database ludb;
     python3 test_12lead.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0 --database zhejiang;
+    python3 test_12lead_single.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0 --database ludb;
+    python3 test_12lead_single.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0 --database zhejiang;
     python3 test_holter.py --basedir ~/DADES/DADES/Delineator/ --model_name ${model} --hpc 0;
 done
