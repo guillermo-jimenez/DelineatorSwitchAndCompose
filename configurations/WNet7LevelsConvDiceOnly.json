@@ -1,6 +1,6 @@
 {
-    "root_directory": "~/DADES/DADES/Delineator/Databases/",
-    "save_directory": "~/DADES/DADES/Delineator/TrainedModels/",
+    "root_directory": "~/DADES/DADES/ECG/Delineator/Databases/",
+    "save_directory": "~/DADES/DADES/ECG/Delineator/TrainedModels/",
     "device": "cuda",
     "seed": 123456,
     "resume": false,
