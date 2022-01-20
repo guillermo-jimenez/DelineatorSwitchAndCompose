@@ -157,7 +157,7 @@ class Dataset(torch.utils.data.Dataset):
         self.QRS_last_sign = {}
         for k in self.QRS:
             segment = self.QRS[k]
-            crossings = sak.signal.zero_crossings(segment)[0]
+            crossings = sak.signal.zero_crossings(segment)
             self.QRS_last_sign[k] = np.sign(sak.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
         # ST wave
         self.ST = ST
@@ -933,7 +933,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def QRS_ectopic(self, segment: np.ndarray, dict_globals: dict, index: int):
         # Compute zero crossings of QRS wave
-        crossings = sak.signal.zero_crossings(segment)[0]
+        crossings = sak.signal.zero_crossings(segment)
 
         # Compute sign of T wave
         dict_globals['sign_t'] = -np.sign(sak.signal.signed_maxima(segment[crossings[-2]:crossings[-1]]))
