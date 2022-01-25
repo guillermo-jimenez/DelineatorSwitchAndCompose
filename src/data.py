@@ -17,6 +17,119 @@ def sigmoid(x: float or Iterable) -> float or np.ndarray:
     return 1/(1 + np.exp(-x))
 
 
+class DatasetUnsupervised(torch.utils.data.Dataset):
+    '''Unsupervised dataset. BEWARE, MUST BE USED WITH "num_workers = 0"'''
+
+    def __init__(self, file: str, window: int, N: int = None, dtype='float32', per_db: bool = True):
+        '''Initialization. BEWARE, MUST BE USED WITH "num_workers = 0"'''
+        # Store inputs
+        self.file              = pathlib.Path(file)
+        self.fhandle           = self.file.open('rb')
+        self.reader            = fleetfmt.FileReader(self.fhandle)
+        self.keys              = list(self.reader.keys())
+#         self.keymap            = reader._keymap
+#         self.schema            = reader._schema
+        self.window            = window
+        self.dtype             = dtype
+        self.N                 = N
+        self.per_db            = per_db
+            
+        if self.per_db:
+            self.databases         = []
+            self.key_per_database  = {}
+            for k in self.keys:
+                DB = k.split("/")[0]
+                if DB not in self.key_per_database:
+                    self.databases.append(DB)
+                    self.key_per_database[DB] = []
+                self.key_per_database[DB].append(k)
+            self.__getkey      = self.__get_key_oversampling
+            self.databases     = np.random.permutation(self.databases).tolist()
+        else:
+            self.__getkey      = self.__get_key_all
+            
+    def __len__(self):
+        '''Denotes the number of elements'''
+        return self.N
+    
+    def __get_key_oversampling(self, i):
+        db = self.databases[i%len(self.databases)]
+        return random.choice(self.key_per_database[db])
+    
+    def __get_key_all(self, i):
+        return random.choice(self.key_per_database[db])
+    
+    def __getitem__(self, i):
+        # Get key
+        key = self.__getkey(i)
+        
+        # Read fragment
+        fragment = self.reader.read(key)
+        
+        # Generate onset randomly
+        onset = random.randint(0,fragment.size-self.window)
+        
+        # Return fragment as dict
+        return {"x": fragment[onset:onset+self.window].astype(self.dtype)}
+
+
+# class DatasetUnsupervisedFILES(torch.utils.data.Dataset):
+#     '''Unsupervised dataset'''
+
+#     def __init__(self, root: str, window: int, N: int = None, dtype='float32', per_db: bool = True):
+#         '''Initialization'''
+#         # Store inputs
+#         self.root              = root
+# #         self.all_files         = ['/media/guille/DADES/DADES/ECG/ALL_UNSUPERVISED/Brugada/041445/AVF_1.pkl']
+# #         self.all_files         = [self.all_files[0]]*3959209
+#         self.all_files         = glob.glob(os.path.join(self.root,"**","*.pkl"),recursive=True)
+#         self.window            = window
+#         self.dtype             = dtype
+#         self.N                 = N
+#         self.per_db            = per_db
+            
+#         if self.per_db:
+#             self.databases         = []
+#             self.key_per_database  = {}
+#             for file in self.all_files:
+#                 root,idx = os.path.split(file)
+#                 root,pat = os.path.split(root)
+#                 root,db  = os.path.split(root)
+#                 if db not in self.key_per_database:
+#                     self.databases.append(db)
+#                     self.key_per_database[db] = []
+#                 self.key_per_database[db].append(file)
+#             self.__getkey      = self.__get_key_oversampling
+#             self.databases     = np.random.permutation(self.databases).tolist()
+#         else:
+#             self.__getkey      = self.__get_key_all
+            
+#     def __len__(self):
+#         '''Denotes the number of elements'''
+#         return self.N
+    
+#     def __get_key_oversampling(self, i):
+#         db = self.databases[i%len(self.databases)]
+#         return random.choice(self.key_per_database[db])
+    
+#     def __get_key_all(self, i):
+#         return random.choice(self.key_per_database[db])
+    
+#     def __getitem__(self, i):
+#         # Get key
+#         key = self.__getkey(i)
+        
+#         # Read fragment
+#         with open(key,"rb"):
+#             fragment = pickle.load(key,protocol=5)
+        
+#         # Generate onset randomly
+#         onset = random.randint(0,fragment.size-self.window)
+        
+#         # Return fragment as dict
+#         return {"x": fragment[None,onset:onset+self.window].astype(self.dtype)}
+
+
 class DatasetQTDB(torch.utils.data.Dataset):
     '''Generates data for PyTorch'''
 
