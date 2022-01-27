@@ -4,6 +4,9 @@ import torch
 import torch.utils
 import numpy as np
 import math
+import random
+import pathlib
+import fleetfmt
 import scipy
 import scipy.stats
 from scipy.stats import norm
@@ -20,29 +23,32 @@ def sigmoid(x: float or Iterable) -> float or np.ndarray:
 class DatasetUnsupervised(torch.utils.data.Dataset):
     '''Unsupervised dataset. BEWARE, MUST BE USED WITH "num_workers = 0"'''
 
-    def __init__(self, file: str, window: int, N: int = None, dtype='float32', per_db: bool = True):
+    def __init__(self, file: str, window: int, N: int = None, dtype='float32', per_db: bool = True, scale: Callable = lambda x: x):
         '''Initialization. BEWARE, MUST BE USED WITH "num_workers = 0"'''
         # Store inputs
         self.file              = pathlib.Path(file)
         self.fhandle           = self.file.open('rb')
         self.reader            = fleetfmt.FileReader(self.fhandle)
         self.keys              = list(self.reader.keys())
-#         self.keymap            = reader._keymap
-#         self.schema            = reader._schema
+        # self.keymap            = reader._keymap
+        # self.schema            = reader._schema
         self.window            = window
         self.dtype             = dtype
         self.N                 = N
         self.per_db            = per_db
+        self.scale             = scale
+        if isinstance(self.scale,str):
+            self.scale         = sak.class_selector(self.scale)
             
         if self.per_db:
             self.databases         = []
             self.key_per_database  = {}
             for k in self.keys:
-                DB = k.split("/")[0]
-                if DB not in self.key_per_database:
-                    self.databases.append(DB)
-                    self.key_per_database[DB] = []
-                self.key_per_database[DB].append(k)
+                db = k.split("/")[0]
+                if db not in self.key_per_database:
+                    self.databases.append(db)
+                    self.key_per_database[db] = []
+                self.key_per_database[db].append(k)
             self.__getkey      = self.__get_key_oversampling
             self.databases     = np.random.permutation(self.databases).tolist()
         else:
@@ -54,10 +60,12 @@ class DatasetUnsupervised(torch.utils.data.Dataset):
     
     def __get_key_oversampling(self, i):
         db = self.databases[i%len(self.databases)]
-        return random.choice(self.key_per_database[db])
+        idx = random.randint(0,len(self.key_per_database[db])-1)
+        return self.key_per_database[db][idx]
     
     def __get_key_all(self, i):
-        return random.choice(self.key_per_database[db])
+        idx = random.randint(0,len(self.keys)-1)
+        return self.keys[idx]
     
     def __getitem__(self, i):
         # Get key
@@ -70,7 +78,7 @@ class DatasetUnsupervised(torch.utils.data.Dataset):
         onset = random.randint(0,fragment.size-self.window)
         
         # Return fragment as dict
-        return {"x": fragment[onset:onset+self.window].astype(self.dtype)}
+        return {"x": sak.data.ball_scaling(fragment[onset:onset+self.window].astype(self.dtype),metric=self.scale)[None,]}
 
 
 # class DatasetUnsupervisedFILES(torch.utils.data.Dataset):
