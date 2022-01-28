@@ -47,6 +47,13 @@
             "patience": 20
         }
     },
+    "lr_scheduler": {
+        "class": "sak.torch.optim.lr_scheduler.CosineWithWarmupLR",
+        "arguments": {
+            "num_warmup_steps":   5000,
+            "num_training_steps": 300000
+        }
+    },
     "UDA": {
         "max_N": 5,
         "weight": 10,
