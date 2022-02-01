@@ -142,8 +142,8 @@ def do_epoch_ssl(model_student: torch.nn.Module, model_teacher: torch.nn.Module,
         # Optimize network's weights
         # Break early
         if torch.isnan(student_loss):
-            continue
-            # raise ValueError("Nan loss value encountered. Stopping...")
+            # continue
+            raise ValueError("Nan loss value encountered. Stopping...")
         if model_student.training:
             student_loss.backward()
             torch.nn.utils.clip_grad_norm_(model_student.parameters(),config["UDA"].get("grad_clip",5.0))
@@ -175,8 +175,8 @@ def do_epoch_ssl(model_student: torch.nn.Module, model_teacher: torch.nn.Module,
 
         # Optimize teacher
         if torch.isnan(teacher_loss):
-            continue
-            # raise ValueError("Nan loss value encountered. Stopping...")
+            # continue
+            raise ValueError("Nan loss value encountered. Stopping...")
         if model_teacher.training:
             teacher_loss.backward()
             torch.nn.utils.clip_grad_norm_(model_teacher.parameters(),config["UDA"].get("grad_clip",5.0))
@@ -229,6 +229,7 @@ def train_model_ssl(model_student: torch.nn.Module, model_teacher: torch.nn.Modu
             # Train model
             loss_train          = do_epoch_ssl(model_student.train(), model_teacher.train(), state, config, 
                                                loader_train, loader_unsupervised, criterion, criterion_crossentropy)
+            state['loss_train'] = np.mean(loss_train,axis=0)
 
             # Save model/state info
             model_student = model_student.cpu().eval()
@@ -237,7 +238,7 @@ def train_model_ssl(model_student: torch.nn.Module, model_teacher: torch.nn.Modu
             torch.save(model_teacher,              os.path.join(config[str_savedir],'checkpoint_teacher.model'),      pickle_module=dill)
             torch.save(model_student.state_dict(), os.path.join(config[str_savedir],'checkpoint_student.state_dict'), pickle_module=dill)
             torch.save(model_teacher.state_dict(), os.path.join(config[str_savedir],'checkpoint_teacher.state_dict'), pickle_module=dill)
-            sak.pickledump(state, os.path.join(config[str_savedir],'checkpoint.state'), mode='wb')
+            sak.pickledump(state,                  os.path.join(config[str_savedir],'checkpoint.state'),              mode='wb')
             model_student = model_student.to(state['device'])
             model_teacher = model_teacher.to(state['device'])
           
@@ -252,10 +253,11 @@ def train_model_ssl(model_student: torch.nn.Module, model_teacher: torch.nn.Modu
                 state['best_epoch'] = epoch
                 
                 # Copy checkpoint and mark as best
-                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_student.model'), os.path.join(config[str_savedir],'model_best_student.model'))
-                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_teacher.model'), os.path.join(config[str_savedir],'model_best_teacher.model'))
-                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_student.state'), os.path.join(config[str_savedir],'model_best_student.state'))
-                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_teacher.state'), os.path.join(config[str_savedir],'model_best_teacher.state'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_student.model'),      os.path.join(config[str_savedir],'model_best_student.model'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_teacher.model'),      os.path.join(config[str_savedir],'model_best_teacher.model'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_student.state_dict'), os.path.join(config[str_savedir],'model_best_student.state_dict'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_teacher.state_dict'), os.path.join(config[str_savedir],'model_best_teacher.state_dict'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint.state'),              os.path.join(config[str_savedir],'model_best.state'))
         except KeyboardInterrupt:
             model_student = model_student.cpu().eval()
             model_teacher = model_teacher.cpu().eval()
@@ -263,7 +265,7 @@ def train_model_ssl(model_student: torch.nn.Module, model_teacher: torch.nn.Modu
             torch.save(model_teacher,              os.path.join(config[str_savedir],'keyboard_interrupt_teacher.model'),      pickle_module=dill)
             torch.save(model_student.state_dict(), os.path.join(config[str_savedir],'keyboard_interrupt_student.state_dict'), pickle_module=dill)
             torch.save(model_teacher.state_dict(), os.path.join(config[str_savedir],'keyboard_interrupt_teacher.state_dict'), pickle_module=dill)
-            sak.pickledump(state, os.path.join(config[str_savedir],'keyboard_interrupt.state'), mode='wb')
+            sak.pickledump(state,                  os.path.join(config[str_savedir],'keyboard_interrupt.state'),              mode='wb')
             raise
         except:
             model_student = model_student.cpu().eval()
@@ -272,7 +274,7 @@ def train_model_ssl(model_student: torch.nn.Module, model_teacher: torch.nn.Modu
             torch.save(model_teacher,              os.path.join(config[str_savedir],'error_teacher.model'),      pickle_module=dill)
             torch.save(model_student.state_dict(), os.path.join(config[str_savedir],'error_student.state_dict'), pickle_module=dill)
             torch.save(model_teacher.state_dict(), os.path.join(config[str_savedir],'error_teacher.state_dict'), pickle_module=dill)
-            sak.pickledump(state, os.path.join(config[str_savedir],'error.state'), mode='wb')
+            sak.pickledump(state,                  os.path.join(config[str_savedir],'error.state'),              mode='wb')
             raise
 
 
@@ -290,7 +292,7 @@ def train_valid_model_ssl(model_student, model_teacher, state: dict, config: dic
     
     # Initialize best loss for early stopping
     if 'best_loss' not in state:
-        state['best_loss'] = [np.inf,np.inf]
+        state['best_loss'] = np.inf
 
     # Get savedir string
     if   "savedir"        in config: str_savedir = 'savedir'
@@ -304,8 +306,10 @@ def train_valid_model_ssl(model_student, model_teacher, state: dict, config: dic
             state['epoch'] = epoch
             
             # Train model
-            loss_train     = do_epoch_ssl(model_student.train(), model_teacher.train(), state, config, 
-                                          loader_train, loader_unsupervised, criterion, criterion_crossentropy)
+            loss_train          = do_epoch_ssl(model_student.train(), model_teacher.train(), state, config, 
+                                               loader_train, loader_unsupervised, criterion, criterion_crossentropy)
+            state['loss_train'] = np.mean(loss_train,axis=0)
+            # print(state['loss_train'].shape,state['loss_train'])
 
             # Validate results
             with torch.no_grad():
@@ -323,7 +327,7 @@ def train_valid_model_ssl(model_student, model_teacher, state: dict, config: dic
             torch.save(model_teacher,              os.path.join(config[str_savedir],'checkpoint_teacher.model'),      pickle_module=dill)
             torch.save(model_student.state_dict(), os.path.join(config[str_savedir],'checkpoint_student.state_dict'), pickle_module=dill)
             torch.save(model_teacher.state_dict(), os.path.join(config[str_savedir],'checkpoint_teacher.state_dict'), pickle_module=dill)
-            sak.pickledump(state, os.path.join(config[str_savedir],'checkpoint.state'), mode='wb')
+            sak.pickledump(state,                  os.path.join(config[str_savedir],'checkpoint.state'),              mode='wb')
             model_student = model_student.to(state['device'])
             model_teacher = model_teacher.to(state['device'])
             
@@ -334,16 +338,18 @@ def train_valid_model_ssl(model_student, model_teacher, state: dict, config: dic
                 csvwriter.writerow(["(Valid) Epoch {:>3d}/{:>3d}, Loss {:10.3f}, {:10.3f}, Time {}".format(state['epoch']+1, config['epochs'], state['loss_validation'], 0.0, time.ctime())])
 
             # Check if loss is best loss
-            compound_loss = 2*state['loss_train'][0]*state['loss_validation']/(state['loss_train'][0]+state['loss_validation'])
+            compound_loss = float(2*state['loss_train'][0]*state['loss_validation']/(state['loss_train'][0]+state['loss_validation']))
+            # print(compound_loss.shape,compound_loss)
             if compound_loss < state['best_loss']:
                 state['best_loss']  = compound_loss
                 state['best_epoch'] = epoch
                 
                 # Copy checkpoint and mark as best
-                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_student.model'), os.path.join(config[str_savedir],'model_best_student.model'))
-                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_teacher.model'), os.path.join(config[str_savedir],'model_best_teacher.model'))
-                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_student.state'), os.path.join(config[str_savedir],'model_best_student.state'))
-                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_teacher.state'), os.path.join(config[str_savedir],'model_best_teacher.state'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_student.model'),      os.path.join(config[str_savedir],'model_best_student.model'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_teacher.model'),      os.path.join(config[str_savedir],'model_best_teacher.model'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_student.state_dict'), os.path.join(config[str_savedir],'model_best_student.state_dict'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint_teacher.state_dict'), os.path.join(config[str_savedir],'model_best_teacher.state_dict'))
+                shutil.copyfile(os.path.join(config[str_savedir],'checkpoint.state'),              os.path.join(config[str_savedir],'model_best.state'))
         except KeyboardInterrupt:
             model_student = model_student.cpu().eval()
             model_teacher = model_teacher.cpu().eval()
@@ -351,7 +357,7 @@ def train_valid_model_ssl(model_student, model_teacher, state: dict, config: dic
             torch.save(model_teacher,              os.path.join(config[str_savedir],'keyboard_interrupt_teacher.model'),      pickle_module=dill)
             torch.save(model_student.state_dict(), os.path.join(config[str_savedir],'keyboard_interrupt_student.state_dict'), pickle_module=dill)
             torch.save(model_teacher.state_dict(), os.path.join(config[str_savedir],'keyboard_interrupt_teacher.state_dict'), pickle_module=dill)
-            sak.pickledump(state, os.path.join(config[str_savedir],'keyboard_interrupt.state'), mode='wb')
+            sak.pickledump(state,                  os.path.join(config[str_savedir],'keyboard_interrupt.state'),              mode='wb')
             raise
         except:
             model_student = model_student.cpu().eval()
@@ -360,7 +366,7 @@ def train_valid_model_ssl(model_student, model_teacher, state: dict, config: dic
             torch.save(model_teacher,              os.path.join(config[str_savedir],'error_teacher.model'),      pickle_module=dill)
             torch.save(model_student.state_dict(), os.path.join(config[str_savedir],'error_student.state_dict'), pickle_module=dill)
             torch.save(model_teacher.state_dict(), os.path.join(config[str_savedir],'error_teacher.state_dict'), pickle_module=dill)
-            sak.pickledump(state, os.path.join(config[str_savedir],'error.state'), mode='wb')
+            sak.pickledump(state,                  os.path.join(config[str_savedir],'error.state'),              mode='wb')
             raise
 
 

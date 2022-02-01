@@ -12,7 +12,7 @@
     },
     "dataset": {
         "scaling_metric": "sak.signal.abs_max",
-        "length": 65536,
+        "length": 16384,
         "N": 2048
     },
     "loader": {
@@ -25,7 +25,7 @@
         "arguments": {
             "file": "/media/guille/DADES/DADES/ECG/unsupervised_float32_250hz.fleet",
             "window": 2048,
-            "N": 508354,
+            "N": 63544,
             "scale": "sak.signal.abs_max"
         }
     },
